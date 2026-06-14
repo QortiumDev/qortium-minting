@@ -1,0 +1,29 @@
+{
+  "name": "qortium-minting",
+  "version": "0.1.0",
+  "private": true,
+  "license": "0BSD",
+  "description": "A small QDN minting status app for Qortium Home.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "vite",
+    "preview": "vite preview",
+    "qdn:publish": "node scripts/publish-qdn.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "emoji-picker-react": "^4.19.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "vitest": "^4.1.8"
+  }
+}
