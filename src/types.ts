@@ -67,6 +67,36 @@ export type MintingStatus = {
   nodeMintingPossible: boolean | null;
 };
 
+// Subset of Core GroupData returned by GET /groups/member/{address} (the groups an
+// account belongs to). isMintingGroup is set by Core for the active minting group(s).
+export type GroupData = {
+  groupId: number;
+  groupName?: string;
+  isMintingGroup?: boolean;
+  isOpen?: boolean;
+};
+
+// Result of the Home bridge JOIN_GROUP write action.
+export type GroupActionResult = {
+  accepted: boolean;
+  action: 'JOIN_GROUP';
+  groupId?: number;
+  groupName?: string | null;
+  transactionSignature?: string;
+};
+
+// Result of the Home bridge START_MINTING write action. Mirrors qortium-chat.
+// keyAdded: the minting key was loaded onto the node. rewardSharePending: an on-chain
+// self-share authorization was just submitted and must confirm before the key can be added.
+export type StartMintingResult = {
+  accepted: boolean;
+  action: 'START_MINTING';
+  address: string;
+  keyAdded: boolean;
+  rewardSharePending?: boolean;
+  transactionSignature?: string;
+};
+
 // Shape returned by GET /addresses/{address} (Core AccountData JSON).
 export type NodeAccountInfo = {
   address?: string;

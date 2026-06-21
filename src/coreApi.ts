@@ -5,6 +5,8 @@ import type {
   BlockMintingInfo,
   BlockSummary,
   ChainPayoutConfig,
+  GroupActionResult,
+  GroupData,
   MintingAccountInfo,
   MintingAccountsResult,
   MintingStatus,
@@ -18,7 +20,14 @@ import type {
   OnlineAccountEntry,
   QdnAction,
   RewardShare,
+  StartMintingResult,
 } from './types';
+
+// Previewnet minting group id (Core previewchain.json `mintingGroupIds`). Being a
+// member of this group is what authorizes an account to mint; joining it (via the
+// Home bridge) carries the account's minting key so the on-chain reward share is
+// created at join time.
+export const MINTING_GROUP_ID = 2;
 
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
 const DEFAULT_RECENT_BLOCKS = 10;
@@ -117,6 +126,10 @@ export function buildSelfRewardSharesPath(address: string) {
   const encodedAddress = encodeURIComponent(address);
 
   return `/addresses/rewardshares?minters=${encodedAddress}&recipients=${encodedAddress}`;
+}
+
+export function buildMemberGroupsPath(address: string) {
+  return `/groups/member/${encodeURIComponent(address)}`;
 }
 
 export function buildBlockByHeightPath(height: number) {
@@ -224,6 +237,53 @@ export async function getMintingStatus(address: string, actions?: QdnAction[]): 
       nodeMintingPossible: null,
     };
   }
+}
+
+// Groups the account currently belongs to. Prefers the native GET_ACCOUNT_GROUPS
+// bridge action, else falls back to GET /groups/member/{address}.
+export async function getMemberGroups(address: string, actions?: QdnAction[]): Promise<GroupData[]> {
+  if (hasBridgeAction(actions, 'GET_ACCOUNT_GROUPS')) {
+    return qdnRequest<GroupData[]>({
+      action: 'GET_ACCOUNT_GROUPS',
+      address,
+    });
+  }
+
+  return fetchNodeApiData<GroupData[]>(buildMemberGroupsPath(address), 'Member groups');
+}
+
+// Whether the account is already a member of the minting group. Core flags the active
+// minting group with isMintingGroup; match on that or the known MINTING_GROUP_ID so the
+// check stays correct even if the configured minting group id changes.
+export async function isMintingGroupMember(address: string, actions?: QdnAction[]): Promise<boolean> {
+  const groups = await getMemberGroups(address, actions);
+
+  return groups.some((group) => group.isMintingGroup === true || group.groupId === MINTING_GROUP_ID);
+}
+
+// Submit a JOIN_GROUP transaction through the Home bridge. For the minting group the
+// bridge attaches the account's minting public key, so the join also authorizes the
+// minting key on chain. This is a WRITE the bridge must support (Home only).
+export async function joinGroup(groupId: number, actions?: QdnAction[]): Promise<GroupActionResult> {
+  if (!hasBridgeAction(actions, 'JOIN_GROUP')) {
+    throw new Error('Joining a group requires Qortium Home.');
+  }
+
+  return qdnRequest<GroupActionResult>({
+    action: 'JOIN_GROUP',
+    groupId,
+  });
+}
+
+// Authorize minting for the selected account and load its minting key onto the node.
+// The bridge submits a self-share REWARD_SHARE if one is not yet on chain
+// (rewardSharePending), otherwise it adds the derived minting key (keyAdded). Home only.
+export async function startMinting(actions?: QdnAction[]): Promise<StartMintingResult> {
+  if (!hasBridgeAction(actions, 'START_MINTING')) {
+    throw new Error('Starting minting requires Qortium Home.');
+  }
+
+  return qdnRequest<StartMintingResult>({ action: 'START_MINTING' });
 }
 
 function getFirstRegisteredName(names: NameSummary[]) {

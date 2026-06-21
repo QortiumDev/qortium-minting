@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const DEFAULT_NODE_API_URL = 'http://127.0.0.1:24891';
 const DEFAULT_NAME = 'Minting';
-const DEFAULT_IDENTIFIER = 'qortium-minting';
+const DEFAULT_IDENTIFIER = 'Minting';
 const DEFAULT_TITLE = 'Minting';
 const POLL_INTERVAL_MS = 5_000;
 const POLL_TIMEOUT_MS = 180_000;

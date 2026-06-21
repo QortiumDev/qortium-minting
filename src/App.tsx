@@ -6,14 +6,19 @@ import {
   getMintingStatus,
   getPayoutConfig,
   getRecentBlocks,
+  isMintingGroupMember,
   isPayoutBlock,
+  joinGroup,
   listMintingAccounts,
+  MINTING_GROUP_ID,
   removeMintingAccount,
+  startMinting,
 } from './coreApi';
 import { getBridgeState, hasAction, qdnRequest } from './qdnRequest';
 import { applyDisplaySettings, getDisplaySettingsUpdateFromMessage, getInitialDisplaySettings } from './displaySettings';
 import { normalizeLanguage } from './i18n';
 import { getAvatarFallbackCharacter } from './avatarProfiles';
+import mintingIconUrl from './assets/qortium-minting-protoicon-black-transparent.png';
 import type {
   BlockSummary,
   BridgeState,
@@ -25,6 +30,12 @@ import type {
   QdnAction,
   QdnSelectedAccount,
 } from './types';
+
+type QdnRenderWindow = Window &
+  typeof globalThis & {
+    _qdnContext?: unknown;
+    _qdnIdentifier?: unknown;
+  };
 
 type AsyncState<T> =
   | { error?: string; phase: 'idle' | 'loading'; value: T }
@@ -56,6 +67,34 @@ function getShortAddress(address: string) {
 
 function getAccountLabel(name: string | null, address: string) {
   return name ?? getShortAddress(address);
+}
+
+function getQdnAssetUrl(assetUrl: string) {
+  if (typeof window === 'undefined') {
+    return assetUrl;
+  }
+
+  const qdnWindow = window as QdnRenderWindow;
+
+  if (qdnWindow._qdnContext !== 'render' && !window.location.pathname.includes('/render/')) {
+    return assetUrl;
+  }
+
+  const identifier =
+    new URLSearchParams(window.location.search).get('identifier') ??
+    (typeof qdnWindow._qdnIdentifier === 'string' ? qdnWindow._qdnIdentifier : '');
+
+  if (!identifier) {
+    return assetUrl;
+  }
+
+  const url = new URL(assetUrl, window.location.href);
+
+  if (!url.searchParams.has('identifier')) {
+    url.searchParams.set('identifier', identifier);
+  }
+
+  return url.toString();
 }
 
 function formatNumber(value: number | null | undefined) {
@@ -479,6 +518,9 @@ export default function App() {
   const [mintingStatus, setMintingStatus] = useState<AsyncState<MintingStatus | null>>(createState(null));
   const [mintingAccounts, setMintingAccounts] =
     useState<AsyncState<MintingAccountsResult>>(createState(emptyMintingAccounts));
+  const [startMintingPending, setStartMintingPending] = useState(false);
+  const [startMintingNotice, setStartMintingNotice] = useState<string | null>(null);
+  const [startMintingError, setStartMintingError] = useState<string | null>(null);
   const [blocks, setBlocks] = useState<AsyncState<BlockSummary[]>>(createState(emptyBlocks));
   const [height, setHeight] = useState<number | null>(null);
   const [blockCount, setBlockCount] = useState(DEFAULT_BLOCK_COUNT);
@@ -601,6 +643,79 @@ export default function App() {
     [actions, loadMintingAccounts],
   );
 
+  // Make sure the selected account is unlocked before a write. UNLOCK_SELECTED_ACCOUNT
+  // prompts Home to unlock if needed and returns the (now-current) account; if the bridge
+  // does not expose it, fall back to the account already in state.
+  const ensureSelectedAccountUnlocked = useCallback(
+    async (actionList: QdnAction[]): Promise<QdnSelectedAccount | null> => {
+      if (!hasAction(actionList, 'UNLOCK_SELECTED_ACCOUNT')) {
+        return account?.isUnlocked ? account : null;
+      }
+
+      const unlocked = normalizeSelectedAccount(
+        await qdnRequest<QdnSelectedAccount>({ action: 'UNLOCK_SELECTED_ACCOUNT' }),
+      );
+
+      setAccount(unlocked);
+
+      return unlocked.isUnlocked ? unlocked : null;
+    },
+    [account],
+  );
+
+  // Start minting for the selected account. If it is not yet in the minting group, the
+  // first click joins it (which authorizes the minting key on chain). Once a member, the
+  // next click adds the minting key to this node — or, if the on-chain authorization is
+  // still pending, submits/awaits it. Each step refreshes the displayed minting status.
+  const handleStartMinting = useCallback(async () => {
+    if (!account || !hasAction(actions, 'START_MINTING')) {
+      return;
+    }
+
+    setStartMintingPending(true);
+    setStartMintingError(null);
+    setStartMintingNotice(null);
+
+    try {
+      const unlocked = await ensureSelectedAccountUnlocked(actions);
+
+      if (!unlocked) {
+        setStartMintingError('Unlock the selected account in Qortium Home to start minting.');
+        return;
+      }
+
+      const address = unlocked.address;
+      const alreadyMember = await isMintingGroupMember(address, actions);
+
+      if (!alreadyMember) {
+        await joinGroup(MINTING_GROUP_ID, actions);
+        setStartMintingNotice(
+          'Joined the minting group. Once the join confirms on chain, click "Start minting" again to add your minting key to this node.',
+        );
+        await loadMintingStatus(address, actions);
+        return;
+      }
+
+      const result = await startMinting(actions);
+
+      if (result.keyAdded) {
+        setStartMintingNotice('Your minting key was added to this node. This account is now minting.');
+      } else if (result.rewardSharePending) {
+        setStartMintingNotice(
+          'Minting authorization submitted. Once it confirms on chain, click "Start minting" again to add your minting key to this node.',
+        );
+      }
+
+      await loadMintingStatus(address, actions);
+      await loadMintingAccounts(actions);
+    } catch (error) {
+      setStartMintingError(getErrorMessage(error, 'Unable to start minting.'));
+      void loadMintingStatus(account.address, actions);
+    } finally {
+      setStartMintingPending(false);
+    }
+  }, [account, actions, ensureSelectedAccountUnlocked, loadMintingAccounts, loadMintingStatus]);
+
   const loadBlocks = useCallback(async (count: number, actionList: QdnAction[]) => {
     const requestId = ++blocksRequestRef.current;
 
@@ -638,6 +753,10 @@ export default function App() {
 
   const connectSelectedAccount = useCallback(
     async (actionList: QdnAction[]) => {
+      // A different (or refreshed) account invalidates any prior start-minting feedback.
+      setStartMintingNotice(null);
+      setStartMintingError(null);
+
       try {
         const selectedAccount = normalizeSelectedAccount(
           await qdnRequest<QdnSelectedAccount>({ action: 'GET_SELECTED_ACCOUNT' }),
@@ -800,6 +919,17 @@ export default function App() {
   const nodeIsMinting =
     (mintingAccounts.phase === 'ready' && listingAvailable && accounts.length > 0) || status?.isMinting === true;
 
+  // Offer to start minting when an account is selected, the bridge can do it (Home), and
+  // that account has no minting key on this node yet (keyOnNode === false; null means a
+  // read-only node that cannot report node-side state, so the offer is hidden there).
+  const canStartMinting = hasAction(actions, 'START_MINTING');
+  const showStartMinting =
+    canStartMinting && !!account && mintingStatus.phase !== 'loading' && status?.keyOnNode === false;
+  const startMintingDescription =
+    status?.hasRewardShare === false
+      ? 'This account is not authorized to mint yet. Starting will join the minting group and register a minting key for it on chain.'
+      : 'This account is authorized to mint but has no key on this node. Starting will add its minting key here.';
+
   const bannerDetail = useMemo(() => {
     if (mintingAccounts.phase === 'loading' && accounts.length === 0) {
       return 'Checking the connected node for active minting keys…';
@@ -833,15 +963,21 @@ export default function App() {
   const isBlocksLoading = blocks.phase === 'loading';
   const isMintingLoading =
     (mintingAccounts.phase === 'loading' || mintingAccounts.phase === 'idle') && accounts.length === 0;
+  const mintingIconSrc = getQdnAssetUrl(mintingIconUrl);
 
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="topbar__title">
-          <h1>Minting</h1>
-          <p className="muted">
-            {bridge.value.isHomeBridge ? 'Connected through Qortium Home' : 'Read-only browser mode'}
-          </p>
+        <div className="topbar__identity">
+          <span className="topbar__mark" aria-hidden="true">
+            <img alt="" src={mintingIconSrc} />
+          </span>
+          <div className="topbar__title">
+            <h1>Minting</h1>
+            <p className="muted">
+              {bridge.value.isHomeBridge ? 'Connected through Qortium Home' : 'Read-only browser mode'}
+            </p>
+          </div>
         </div>
         <div className="topbar__chain">
           <span className="topbar__chain-label">Chain height</span>
@@ -887,6 +1023,23 @@ export default function App() {
               ) : (
                 <p className="empty">No minting keys are loaded on this node.</p>
               )}
+
+              {showStartMinting ? (
+                <div className="start-minting">
+                  <p className="start-minting__hint">{startMintingDescription}</p>
+                  <button
+                    className="button button--primary"
+                    disabled={startMintingPending}
+                    onClick={() => void handleStartMinting()}
+                    type="button"
+                  >
+                    {startMintingPending ? 'Starting…' : 'Start minting'}
+                  </button>
+                </div>
+              ) : null}
+
+              {startMintingNotice ? <p className="notice start-minting__notice">{startMintingNotice}</p> : null}
+              {startMintingError ? <p className="error start-minting__error">{startMintingError}</p> : null}
 
               {mintingStatus.phase === 'error' ? <p className="error">{mintingStatus.error}</p> : null}
             </>

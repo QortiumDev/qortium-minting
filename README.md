@@ -34,7 +34,7 @@ npm run build
 npm run qdn:publish
 ```
 
-By default the publish helper uploads `dist/` as `qdn://APP/Minting/qortium-minting`
+By default the publish helper uploads `dist/` as `qdn://APP/Minting/Minting`
 through `http://127.0.0.1:24891`, using the local preview account files under
 `~/git/qortium/preview`. The helper uses `QORTIUM_MINTING_NODE_API_KEY` or
 `QORTIUM_MINTING_NODE_API_KEY_PATH` when set, then tries the API key for the
@@ -52,7 +52,7 @@ npm test
 npm run build
 ```
 
-Then open `qdn://APP/Minting/qortium-minting` in Qortium Home with a local node
+Then open `qdn://APP/Minting/Minting` in Qortium Home with a local node
 selected and an unlocked tab account. Confirm that the status pill reports Home,
 the node minting state loads, the minting-key account summary renders, recent
 blocks and their online accounts load, and Home display settings update theme,
@@ -60,9 +60,9 @@ text size, accent, and language in the app.
 
 For a publish pass, confirm the local Core is fully synchronized before running
 `npm run qdn:publish`. The expected identified render URL is
-`http://127.0.0.1:24891/render/APP/Minting?identifier=qortium-minting`, and the
+`http://127.0.0.1:24891/render/APP/Minting?identifier=Minting`, and the
 published resource should report `READY` at
-`/arbitrary/resource/status/APP/Minting/qortium-minting?build=true`.
+`/arbitrary/resource/status/APP/Minting/Minting?build=true`.
 
 ## Current Limits
 
