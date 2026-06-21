@@ -106,13 +106,59 @@ async function resolveRegisteredName(address: string, preferredName: string | nu
   return getFirstRegisteredName(await getAccountNames(address, actions));
 }
 
-export async function fetchAvatarImage(name: string) {
+const STATUS_POLL_ATTEMPTS = 4;
+const STATUS_POLL_INTERVAL_MS = 800;
+
+// Statuses that will never become READY, so polling can stop early.
+const FAILED_RESOURCE_STATUSES = new Set(['BLOCKED', 'BUILD_FAILED']);
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+// When the host can report QDN resource status, wait briefly for the THUMBNAIL to finish
+// downloading/building before fetching it. A resource still downloading reports a non-READY
+// status (Core's async fetch returns 404 meanwhile), which would otherwise latch the avatar
+// fallback until the next manual refresh; polling lets the first load succeed. No-ops when
+// GET_QDN_RESOURCE_STATUS is unavailable (e.g. browser-dev), preserving the single-shot path.
+async function waitForResourceReady(
+  request: { service: string; name: string; identifier: string },
+  actions?: QdnAction[],
+) {
+  if (!actions?.some((action) => action.toUpperCase() === 'GET_QDN_RESOURCE_STATUS')) {
+    return;
+  }
+
+  for (let attempt = 0; attempt < STATUS_POLL_ATTEMPTS; attempt += 1) {
+    let status: string | undefined;
+
+    try {
+      const result = await qdnRequest<unknown>({ action: 'GET_QDN_RESOURCE_STATUS', ...request });
+      status = getStringProperty(result, 'status');
+    } catch {
+      return; // Status unavailable; let the fetch attempt proceed.
+    }
+
+    if (status === 'READY' || (status !== undefined && FAILED_RESOURCE_STATUSES.has(status))) {
+      return;
+    }
+
+    if (attempt < STATUS_POLL_ATTEMPTS - 1) {
+      await delay(STATUS_POLL_INTERVAL_MS);
+    }
+  }
+}
+
+export async function fetchAvatarImage(name: string, actions?: QdnAction[]) {
   const request = {
     service: 'THUMBNAIL',
     name,
     identifier: 'avatar',
     path: '',
   };
+
+  await waitForResourceReady({ identifier: request.identifier, name: request.name, service: request.service }, actions);
+
   const properties = await qdnRequest<unknown>({
     action: 'GET_QDN_RESOURCE_PROPERTIES',
     ...request,
@@ -159,7 +205,7 @@ export async function loadAvatarProfile({
   try {
     return {
       address,
-      avatarSrc: await fetchAvatarImage(name),
+      avatarSrc: await fetchAvatarImage(name, actions),
       name,
     };
   } catch {

@@ -60,7 +60,9 @@ text size, accent, and language in the app.
 
 For a publish pass, confirm the local Core is fully synchronized before running
 `npm run qdn:publish`. The expected identified render URL is
-`http://127.0.0.1:24891/render/APP/Minting?identifier=Minting`, and the
+`http://127.0.0.1:24891/render/APP/Minting/Minting` (Home now passes the
+identifier as a path segment; Core injects a matching `<base href>` so bundled
+relative assets resolve under it), and the
 published resource should report `READY` at
 `/arbitrary/resource/status/APP/Minting/Minting?build=true`.
 

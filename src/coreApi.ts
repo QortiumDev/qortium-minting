@@ -195,7 +195,13 @@ export async function getPrimaryName(address: string): Promise<string | null> {
   }
 }
 
-export async function getAccountInfo(address: string) {
+// On-chain account info (level, blocksMinted, public key). Prefers the native
+// GET_ACCOUNT_DATA bridge action when present, else falls back to GET /addresses/{address}.
+export async function getAccountInfo(address: string, actions?: QdnAction[]) {
+  if (hasBridgeAction(actions, 'GET_ACCOUNT_DATA')) {
+    return qdnRequest<NodeAccountInfo>({ action: 'GET_ACCOUNT_DATA', address });
+  }
+
   return fetchNodeApiData<NodeAccountInfo>(buildAccountInfoPath(address), 'Account info');
 }
 
@@ -339,7 +345,7 @@ async function enrichMintingAccount(account: NodeMintingAccount, actions?: QdnAc
   const publicKey: string | null = normalizeRegisteredName(account.publicKey);
 
   try {
-    const info = await getAccountInfo(address);
+    const info = await getAccountInfo(address, actions);
 
     level = typeof info.level === 'number' ? info.level : null;
     blocksMinted = typeof info.blocksMinted === 'number' ? info.blocksMinted : null;
@@ -551,10 +557,11 @@ export async function getBlockOnlineAccounts(
 }
 
 // Remove a minting key from the local node. Core: DELETE /admin/mintingaccounts with
-// the base58 public (or private) key as the plain-text body. This is a WRITE that the
-// current Qortium Home bridge does not expose, so it is gated on a REMOVE_MINTING_ACCOUNT
-// action: available in browser-dev when VITE_QORTIUM_NODE_API_KEY is set, or once Home
-// adds the action. Callers should check hasAction(actions, 'REMOVE_MINTING_ACCOUNT') first.
+// the base58 public (or private) key as the plain-text body. This is a WRITE gated on a
+// REMOVE_MINTING_ACCOUNT action. Qortium Home exposes this action (it prompts its own
+// write-approval and takes the key as `publicKey`); it is also available in browser-dev
+// when VITE_QORTIUM_NODE_API_KEY is set. Callers should check
+// hasAction(actions, 'REMOVE_MINTING_ACCOUNT') first.
 export async function removeMintingAccount(publicKey: string, actions?: QdnAction[]): Promise<void> {
   if (!publicKey) {
     throw new Error('A public key is required to remove a minting key.');

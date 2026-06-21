@@ -31,12 +31,6 @@ import type {
   QdnSelectedAccount,
 } from './types';
 
-type QdnRenderWindow = Window &
-  typeof globalThis & {
-    _qdnContext?: unknown;
-    _qdnIdentifier?: unknown;
-  };
-
 type AsyncState<T> =
   | { error?: string; phase: 'idle' | 'loading'; value: T }
   | { error: string; phase: 'error'; value: T }
@@ -67,34 +61,6 @@ function getShortAddress(address: string) {
 
 function getAccountLabel(name: string | null, address: string) {
   return name ?? getShortAddress(address);
-}
-
-function getQdnAssetUrl(assetUrl: string) {
-  if (typeof window === 'undefined') {
-    return assetUrl;
-  }
-
-  const qdnWindow = window as QdnRenderWindow;
-
-  if (qdnWindow._qdnContext !== 'render' && !window.location.pathname.includes('/render/')) {
-    return assetUrl;
-  }
-
-  const identifier =
-    new URLSearchParams(window.location.search).get('identifier') ??
-    (typeof qdnWindow._qdnIdentifier === 'string' ? qdnWindow._qdnIdentifier : '');
-
-  if (!identifier) {
-    return assetUrl;
-  }
-
-  const url = new URL(assetUrl, window.location.href);
-
-  if (!url.searchParams.has('identifier')) {
-    url.searchParams.set('identifier', identifier);
-  }
-
-  return url.toString();
 }
 
 function formatNumber(value: number | null | undefined) {
@@ -540,7 +506,6 @@ export default function App() {
   const onlineNowRequestRef = useRef(0);
 
   const actions = bridge.value.actions;
-  const actionsKey = actions.join('\n');
   const payoutConfig = useMemo(() => getPayoutConfig(), []);
   const batchActive = height !== null && height > payoutConfig.blockRewardBatchStartHeight;
 
@@ -906,9 +871,9 @@ export default function App() {
     void loadOnlineNow(actions);
   }
 
-  // Removing a key is a node write the current bridge cannot do; it is available
-  // when a REMOVE_MINTING_ACCOUNT action is present (Home support, or browser-dev
-  // with VITE_QORTIUM_NODE_API_KEY set).
+  // Removing a key is a node write, available when a REMOVE_MINTING_ACCOUNT action is
+  // present: Qortium Home exposes it (with its own write-approval prompt), and browser-dev
+  // offers it when VITE_QORTIUM_NODE_API_KEY is set.
   const canRemove = hasAction(actions, 'REMOVE_MINTING_ACCOUNT');
 
   // The node is considered to be minting when it reports active minting keys, or
@@ -963,14 +928,15 @@ export default function App() {
   const isBlocksLoading = blocks.phase === 'loading';
   const isMintingLoading =
     (mintingAccounts.phase === 'loading' || mintingAccounts.phase === 'idle') && accounts.length === 0;
-  const mintingIconSrc = getQdnAssetUrl(mintingIconUrl);
 
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar__identity">
           <span className="topbar__mark" aria-hidden="true">
-            <img alt="" src={mintingIconSrc} />
+            {/* Relative Vite asset (base: './'); QDN render resolves it against the
+                identifier-scoped <base href> Core injects, so no manual URL rewriting. */}
+            <img alt="" src={mintingIconUrl} />
           </span>
           <div className="topbar__title">
             <h1>Minting</h1>
