@@ -933,10 +933,8 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar__identity">
-          <span className="topbar__mark" aria-hidden="true">
-            {/* Relative Vite asset (base: './'); QDN render resolves it against the
-                identifier-scoped <base href> Core injects, so no manual URL rewriting. */}
-            <img alt="" src={mintingIconUrl} />
+          <span className="topbar__mark">
+            <img alt="" aria-hidden="true" src={mintingIconUrl} />
           </span>
           <div className="topbar__title">
             <h1>Minting</h1>
