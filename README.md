@@ -39,7 +39,7 @@ through `http://127.0.0.1:24891`, using the local preview account files under
 `~/git/qortium/preview`. The helper uses `QORTIUM_MINTING_NODE_API_KEY` or
 `QORTIUM_MINTING_NODE_API_KEY_PATH` when set, then tries the API key for the
 active local Core process, and finally falls back to
-`~/git/qortium/preview/apikey.txt`. Set `QORTIUM_MINTING_QDN_NAME`,
+`~/.config/qortium-core/runtime/apikey.txt`. Set `QORTIUM_MINTING_QDN_NAME`,
 `QORTIUM_MINTING_QDN_IDENTIFIER`, `QORTIUM_MINTING_QDN_TITLE`, or
 `QORTIUM_MINTING_QDN_SERVICE` to publish another QDN resource.
 
