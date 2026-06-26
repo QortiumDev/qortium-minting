@@ -663,10 +663,13 @@ export default function App() {
       }
 
       await removeMintingAccount(target.publicKey, actions);
-      // Reload the node's minting keys so the removed card disappears.
+      // Reload both the node's minting keys and the selected account's status:
+      // the Start minting button is driven by `mintingStatus.keyOnNode`, so a
+      // successful removal must refresh that state just like adding a key does.
       await loadMintingAccounts(actions);
+      await loadMintingStatus(account?.address ?? null, actions);
     },
-    [actions, loadMintingAccounts],
+    [account?.address, actions, loadMintingAccounts, loadMintingStatus],
   );
 
   // Make sure the selected account is unlocked before a write. UNLOCK_SELECTED_ACCOUNT
