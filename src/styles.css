@@ -710,6 +710,56 @@ samp,
   border-radius: var(--qc-radius-md);
 }
 
+.selected-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px 12px;
+  background: var(--qc-color-surface);
+  border: 1px solid var(--qc-color-border);
+  border-radius: var(--qc-radius-md);
+}
+
+.selected-account__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--qc-radius-md);
+}
+
+.selected-account__body {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.selected-account__eyebrow {
+  color: var(--qc-color-muted);
+  font-size: var(--qc-text-tiny);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.selected-account strong,
+.selected-account code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-account strong {
+  color: var(--qc-color-text);
+  font-size: var(--qc-text-small);
+}
+
+.selected-account code {
+  color: var(--qc-color-text-secondary);
+  font-size: var(--qc-text-tiny);
+}
+
 .start-minting__hint {
   margin: 0;
   color: var(--qc-color-text-secondary);
