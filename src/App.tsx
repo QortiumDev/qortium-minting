@@ -12,6 +12,7 @@ import {
   listMintingAccounts,
   MINTING_GROUP_ID,
   removeMintingAccount,
+  resolveIdentities,
   startMinting,
 } from './coreApi';
 import { getBridgeState, hasAction, qdnRequest } from './qdnRequest';
@@ -29,6 +30,7 @@ import type {
   OnlineAccountEntry,
   QdnAction,
   QdnSelectedAccount,
+  ResolvedIdentity,
 } from './types';
 
 type AsyncState<T> =
@@ -205,6 +207,29 @@ function MintingBanner({ isMinting, detail }: { isMinting: boolean; detail: stri
       <div className="minting-banner__text">
         <strong>{isMinting ? 'This node IS minting' : 'This node is NOT minting'}</strong>
         <span>{detail}</span>
+      </div>
+    </div>
+  );
+}
+
+function SelectedAccountChip({
+  account,
+  identity,
+}: {
+  account: QdnSelectedAccount;
+  identity: ResolvedIdentity | null;
+}) {
+  const name = identity?.name ?? account.name ?? null;
+  const avatarSrc = identity?.avatarSrc ?? account.avatarUrl ?? null;
+  const label = getAccountLabel(name, account.address);
+
+  return (
+    <div className="selected-account" title={account.address}>
+      <Avatar className="selected-account__avatar" name={name} src={avatarSrc} />
+      <div className="selected-account__body">
+        <span className="selected-account__eyebrow">Using selected account</span>
+        <strong>{label}</strong>
+        <code>{getShortAddress(account.address)}</code>
       </div>
     </div>
   );
@@ -481,6 +506,7 @@ export default function App() {
     createState({ actions: [], isHomeBridge: false, ui: 'BROWSER_DEV' }),
   );
   const [account, setAccount] = useState<QdnSelectedAccount | null>(null);
+  const [selectedAccountIdentity, setSelectedAccountIdentity] = useState<ResolvedIdentity | null>(null);
   const [mintingStatus, setMintingStatus] = useState<AsyncState<MintingStatus | null>>(createState(null));
   const [mintingAccounts, setMintingAccounts] =
     useState<AsyncState<MintingAccountsResult>>(createState(emptyMintingAccounts));
@@ -503,6 +529,7 @@ export default function App() {
   const blocksRequestRef = useRef(0);
   const mintingStatusRequestRef = useRef(0);
   const mintingAccountsRequestRef = useRef(0);
+  const selectedAccountIdentityRequestRef = useRef(0);
   const onlineNowRequestRef = useRef(0);
 
   const actions = bridge.value.actions;
@@ -569,6 +596,40 @@ export default function App() {
     }
   }, []);
 
+  const loadSelectedAccountIdentity = useCallback(async (selectedAccount: QdnSelectedAccount, actionList: QdnAction[]) => {
+    const requestId = ++selectedAccountIdentityRequestRef.current;
+    const fallbackIdentity: ResolvedIdentity = {
+      address: selectedAccount.address,
+      avatarSrc: selectedAccount.avatarUrl,
+      name: selectedAccount.name,
+    };
+
+    if (!hasAction(actionList, 'RESOLVE_IDENTITIES')) {
+      setSelectedAccountIdentity(fallbackIdentity);
+      return;
+    }
+
+    try {
+      const [resolved] = await resolveIdentities([selectedAccount.address], actionList);
+
+      if (requestId !== selectedAccountIdentityRequestRef.current) {
+        return;
+      }
+
+      setSelectedAccountIdentity({
+        address: selectedAccount.address,
+        avatarSrc: resolved?.avatarSrc ?? fallbackIdentity.avatarSrc,
+        name: resolved?.name ?? fallbackIdentity.name,
+      });
+    } catch {
+      if (requestId !== selectedAccountIdentityRequestRef.current) {
+        return;
+      }
+
+      setSelectedAccountIdentity(fallbackIdentity);
+    }
+  }, []);
+
   const loadOnlineNow = useCallback(async (actionList: QdnAction[]) => {
     const requestId = ++onlineNowRequestRef.current;
 
@@ -622,10 +683,11 @@ export default function App() {
       );
 
       setAccount(unlocked);
+      void loadSelectedAccountIdentity(unlocked, actionList);
 
       return unlocked.isUnlocked ? unlocked : null;
     },
-    [account],
+    [account, loadSelectedAccountIdentity],
   );
 
   // Start minting for the selected account. If it is not yet in the minting group, the
@@ -728,6 +790,7 @@ export default function App() {
         );
 
         setAccount(selectedAccount);
+        void loadSelectedAccountIdentity(selectedAccount, actionList);
         void loadMintingStatus(selectedAccount.address, actionList);
 
         return selectedAccount;
@@ -735,12 +798,13 @@ export default function App() {
         // No selected account (browser dev or not shared); fall back to the
         // node's own minting accounts to decide whether the node is minting.
         setAccount(null);
+        setSelectedAccountIdentity(null);
         setMintingStatus({ phase: 'ready', value: null });
 
         return null;
       }
     },
-    [loadMintingStatus],
+    [loadMintingStatus, loadSelectedAccountIdentity],
   );
 
   const initializeSession = useCallback(async () => {
@@ -990,6 +1054,7 @@ export default function App() {
 
               {showStartMinting ? (
                 <div className="start-minting">
+                  <SelectedAccountChip account={account} identity={selectedAccountIdentity} />
                   <p className="start-minting__hint">{startMintingDescription}</p>
                   <button
                     className="button button--primary"

@@ -43,6 +43,12 @@ export type NameSummary = {
   owner?: string | null;
 };
 
+export type ResolvedIdentity = {
+  address: string;
+  avatarSrc?: string | null;
+  name?: string | null;
+};
+
 export type RewardShare = {
   mintingAccount?: string;
   recipient?: string;

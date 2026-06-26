@@ -19,6 +19,7 @@ import type {
   NodeStatus,
   OnlineAccountEntry,
   QdnAction,
+  ResolvedIdentity,
   RewardShare,
   StartMintingResult,
 } from './types';
@@ -180,6 +181,33 @@ export async function getAccountNames(address: string, actions?: QdnAction[]) {
   }
 
   return fetchNodeApiData<NameSummary[]>(buildAccountNamesPath(address), 'Account names');
+}
+
+export const RESOLVE_IDENTITIES_LIMIT = 500;
+
+// Home resolves account display identity (registered name + avatar URL) in one
+// read-only bridge call. This keeps selected-account UI consistent with other
+// QDN apps and avoids separate name/avatar requests.
+export async function resolveIdentities(addresses: string[], actions?: QdnAction[]): Promise<ResolvedIdentity[]> {
+  if (!hasBridgeAction(actions, 'RESOLVE_IDENTITIES')) {
+    throw new Error('RESOLVE_IDENTITIES is not available in this Home build.');
+  }
+
+  const unique = Array.from(new Set(addresses.filter((address) => address)));
+  const resolved: ResolvedIdentity[] = [];
+
+  for (let index = 0; index < unique.length; index += RESOLVE_IDENTITIES_LIMIT) {
+    const batch = await qdnRequest<ResolvedIdentity[]>({
+      action: 'RESOLVE_IDENTITIES',
+      addresses: unique.slice(index, index + RESOLVE_IDENTITIES_LIMIT),
+    });
+
+    if (Array.isArray(batch)) {
+      resolved.push(...batch);
+    }
+  }
+
+  return resolved;
 }
 
 // An account's primary name (the one it has designated for display). Setting a primary
