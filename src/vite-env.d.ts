@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 
+declare const __APP_VERSION__: string;
+
 interface ImportMetaEnv {
   readonly VITE_QORTIUM_NODE_API_URL?: string;
   // Dev-only: local Core API key, used solely by the browser-dev fallback to call

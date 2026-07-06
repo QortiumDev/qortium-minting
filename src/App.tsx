@@ -41,6 +41,7 @@ type AsyncState<T> =
 const DEFAULT_BLOCK_COUNT = 25;
 const BLOCK_COUNT_STEP = 25;
 const MAX_BLOCK_COUNT = 200;
+const APP_VERSION = __APP_VERSION__;
 
 const emptyBlocks: BlockSummary[] = [];
 const emptyMintingAccounts: MintingAccountsResult = { accounts: [], available: true };
@@ -1004,7 +1005,10 @@ export default function App() {
             <img alt="" aria-hidden="true" src={mintingIconUrl} />
           </span>
           <div className="topbar__title">
-            <h1>Minting</h1>
+            <div className="topbar__title-row">
+              <h1>Minting</h1>
+              <span className="app-version">{APP_VERSION}</span>
+            </div>
             <p className="muted">
               {bridge.value.isHomeBridge ? 'Connected through Qortium Home' : 'Read-only browser mode'}
             </p>
