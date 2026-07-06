@@ -544,6 +544,20 @@ samp,
   line-height: var(--qc-line-tight);
 }
 
+.topbar__title-row {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.app-version {
+  color: var(--qc-color-muted);
+  flex: none;
+  font-size: var(--qc-text-small);
+  font-weight: 650;
+}
+
 .topbar__chain {
   display: grid;
   justify-items: end;
