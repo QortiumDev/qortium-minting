@@ -15,7 +15,19 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(`v${packageJson.version}`),
   },
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'qortium-app-manifest',
+      generateBundle() {
+        this.emitFile({
+          type: 'asset',
+          fileName: 'qortium-app.json',
+          source: `${JSON.stringify({ name: 'Minting', version: packageJson.version }, null, 2)}\n`,
+        });
+      },
+    },
+  ],
   test: {
     environment: 'node',
     globals: true,
