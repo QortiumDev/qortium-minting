@@ -10,7 +10,7 @@ export default defineConfig({
   base: './',
   build: {
     assetsInlineLimit: (filePath) =>
-      /[/\\]src[/\\]assets[/\\]fonts[/\\].+\.ttf$/.test(filePath) ? true : undefined,
+      /[/\\]src[/\\]assets[/\\]fonts[/\\].+\.(?:ttf|woff2)$/.test(filePath) ? true : undefined,
   },
   define: {
     __APP_VERSION__: JSON.stringify(`v${packageJson.version}`),

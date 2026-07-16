@@ -4,13 +4,16 @@ const DEFAULT_NODE_API_URL = 'http://127.0.0.1:24891';
 
 export const LOCAL_READ_ACTIONS = [
   'FETCH_NODE_API',
+  'FETCH_QDN_RESOURCE',
   'GET_NODE_STATUS',
   'IS_USING_PUBLIC_NODE',
+  'LIST_QDN_RESOURCES',
+  'SEARCH_QDN_RESOURCES',
   'SHOW_ACTIONS',
   'WHICH_UI',
 ] as const;
 
-type QdnRequest = {
+export type QdnRequest = {
   action: string;
   maxBytes?: number;
   method?: string;
@@ -117,6 +120,22 @@ async function fetchLocalNodeApi(request: QdnRequest): Promise<NodeApiFetchResul
   };
 }
 
+function qdnResourcePath(request: QdnRequest) {
+  const service = typeof request.service === 'string' ? request.service.toUpperCase() : '';
+  const name = typeof request.name === 'string' ? request.name : '';
+  const identifier = typeof request.identifier === 'string' ? request.identifier : '';
+  if (!service || !name) throw new Error('QDN resource service and name are required.');
+  const query = new URLSearchParams();
+  for (const key of ['encoding', 'rebuild', 'async']) if (request[key] !== undefined) query.set(key, String(request[key]));
+  return `/arbitrary/${service}/${encodeURIComponent(name)}${identifier ? `/${encodeURIComponent(identifier)}` : ''}${query.size ? `?${query}` : ''}`;
+}
+
+async function localData(request: QdnRequest, path: string) {
+  const result = await fetchLocalNodeApi({ ...request, action: 'FETCH_NODE_API', path });
+  if (!result.ok) throw new Error(result.body || 'Node request was unavailable.');
+  return result.data;
+}
+
 // Restricted write to the local node, used only by the browser-dev fallback. Sends
 // the configured dev API key as the X-API-KEY header.
 async function deleteLocalNodeApi(path: string, body: string): Promise<NodeApiFetchResult> {
@@ -178,6 +197,12 @@ async function fallbackQdnRequest<T>(request: QdnRequest): Promise<T> {
       return false as T;
     case 'FETCH_NODE_API':
       return (await fetchLocalNodeApi(request)) as T;
+    case 'FETCH_QDN_RESOURCE':
+      return (await localData(request, qdnResourcePath(request))) as T;
+    case 'LIST_QDN_RESOURCES':
+      return (await localData(request, '/arbitrary/resources')) as T;
+    case 'SEARCH_QDN_RESOURCES':
+      return (await localData(request, '/arbitrary/resources/search')) as T;
     case 'GET_NODE_STATUS': {
       const result = await fetchLocalNodeApi({ action: 'FETCH_NODE_API', path: '/admin/status' });
 
@@ -215,6 +240,7 @@ export async function qdnRequest<T = unknown>(request: QdnRequest): Promise<T> {
 export async function getBridgeState(): Promise<BridgeState> {
   let actions: QdnAction[] = [];
   let ui = hasHomeBridge() ? 'QORTIUM_HOME' : 'BROWSER_DEV';
+  let isUsingPublicNode = false;
 
   try {
     const requestedActions = await qdnRequest<unknown>({ action: 'SHOW_ACTIONS' });
@@ -225,6 +251,8 @@ export async function getBridgeState(): Promise<BridgeState> {
   } catch {
     actions = [...LOCAL_READ_ACTIONS];
   }
+
+  try { isUsingPublicNode = await qdnRequest<boolean>({ action: 'IS_USING_PUBLIC_NODE' }) === true; } catch { /* local default */ }
 
   try {
     const requestedUi = await qdnRequest<unknown>({ action: 'WHICH_UI' });
@@ -239,6 +267,7 @@ export async function getBridgeState(): Promise<BridgeState> {
   return {
     actions,
     isHomeBridge: hasHomeBridge(),
+    isUsingPublicNode,
     ui,
   };
 }

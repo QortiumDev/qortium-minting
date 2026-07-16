@@ -1,5 +1,6 @@
-import { loadAvatarProfile, normalizeRegisteredName } from './avatarProfiles';
-import type { AvatarProfile } from './avatarProfiles';
+import { groupContiguousDescending } from './blockFilter';
+import { loadIdentityProfile, loadIdentityProfiles, normalizeRegisteredName } from './identityProfiles';
+import type { IdentityProfile } from './identityProfiles';
 import { qdnRequest } from './qdnRequest';
 import type {
   BlockMintingInfo,
@@ -7,6 +8,8 @@ import type {
   ChainPayoutConfig,
   GroupActionResult,
   GroupData,
+  GroupMember,
+  GroupMembersResponse,
   MintingAccountInfo,
   MintingAccountsResult,
   MintingStatus,
@@ -19,6 +22,7 @@ import type {
   NodeStatus,
   OnlineAccountEntry,
   QdnAction,
+  RemoveMintingAccountResult,
   ResolvedIdentity,
   RewardShare,
   StartMintingResult,
@@ -43,14 +47,12 @@ const BLOCK_FETCH_CONCURRENCY = 8;
 // enrichMintingAccount so repeated refreshes/expands hit the cache instead of
 // refetching. Entries store the in-flight Promise so concurrent lookups for the
 // same address share a single request (true dedupe of the initial burst).
-const NAME_CACHE_MAX_ENTRIES = 500;
 const AVATAR_CACHE_MAX_ENTRIES = 500;
-const minterNameCache = new Map<string, Promise<string | null>>();
-const avatarProfileCache = new Map<string, Promise<AvatarProfile>>();
+const avatarProfileCache = new Map<string, Promise<IdentityProfile>>();
 
 // Resolve a list of tasks with a bounded concurrency pool while preserving the
 // input order in the returned array.
-async function mapWithConcurrency<T, R>(
+export async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,
   task: (item: T, index: number) => Promise<R>,
@@ -96,7 +98,9 @@ function setCapped<V>(cache: Map<string, V>, key: string, value: V, maxEntries: 
 const PREVIEWNET_PAYOUT_CONFIG: ChainPayoutConfig = {
   blockRewardBatchAccountsBlockCount: 10,
   blockRewardBatchSize: 100,
-  blockRewardBatchStartHeight: 1508000,
+  // Previewnet's featureTriggers.blockRewardBatchStartHeight in previewchain.json.
+  // The top-level 1508000 value is a fallback that does not apply here.
+  blockRewardBatchStartHeight: 55000,
 };
 
 function assertOk<T>(result: NodeApiFetchResult<T>, label: string) {
@@ -105,6 +109,11 @@ function assertOk<T>(result: NodeApiFetchResult<T>, label: string) {
   }
 
   return result.data;
+}
+
+/** Unwrap Home's FETCH_NODE_API envelope and make a failed result a normal error. */
+export function responseData<T>(result: NodeApiFetchResult<T>, label = 'Request'): T {
+  return assertOk(result, label);
 }
 
 function hasBridgeAction(actions: QdnAction[] | undefined, action: string) {
@@ -131,6 +140,11 @@ export function buildSelfRewardSharesPath(address: string) {
 
 export function buildMemberGroupsPath(address: string) {
   return `/groups/member/${encodeURIComponent(address)}`;
+}
+
+export function buildGroupMembersPath(groupId: number, limit = 250, offset = 0) {
+  const query = new URLSearchParams({ limit: String(limit), offset: String(offset), reverse: 'true' });
+  return `/groups/members/${encodeURIComponent(String(groupId))}?${query.toString()}`;
 }
 
 export function buildBlockByHeightPath(height: number) {
@@ -273,6 +287,17 @@ export async function getMintingStatus(address: string, actions?: QdnAction[]): 
   }
 }
 
+export async function getSelfRewardShares(address: string): Promise<RewardShare[]> {
+  const rewardShares = await fetchNodeApiData<RewardShare[]>(
+    buildSelfRewardSharesPath(address),
+    'Reward shares',
+  );
+
+  return rewardShares.filter(
+    (rewardShare) => rewardShare.mintingAccount === address && rewardShare.recipient === address,
+  );
+}
+
 // Groups the account currently belongs to. Prefers the native GET_ACCOUNT_GROUPS
 // bridge action, else falls back to GET /groups/member/{address}.
 export async function getMemberGroups(address: string, actions?: QdnAction[]): Promise<GroupData[]> {
@@ -293,6 +318,25 @@ export async function isMintingGroupMember(address: string, actions?: QdnAction[
   const groups = await getMemberGroups(address, actions);
 
   return groups.some((group) => group.isMintingGroup === true || group.groupId === MINTING_GROUP_ID);
+}
+
+/** Fetch every group member page. The short-page stop avoids silently truncating a growing group. */
+export async function getGroupMembers(groupId: number, actions?: QdnAction[], pageSize = 250): Promise<GroupMember[]> {
+  const members: GroupMember[] = [];
+  let offset = 0;
+  const limit = Math.max(1, Math.min(500, Math.trunc(pageSize)));
+
+  while (true) {
+    const page = hasBridgeAction(actions, 'GET_GROUP_MEMBERS')
+      ? await qdnRequest<GroupMembersResponse>({ action: 'GET_GROUP_MEMBERS', groupId, limit, offset })
+      : await fetchNodeApiData<GroupMembersResponse>(buildGroupMembersPath(groupId, limit, offset), 'Group members');
+    const pageMembers = Array.isArray(page.members) ? page.members.filter((member): member is GroupMember =>
+      !!member && typeof member.member === 'string' && member.member.length > 0,
+    ) : [];
+    members.push(...pageMembers);
+    if (pageMembers.length < limit) return members;
+    offset += pageMembers.length;
+  }
 }
 
 // Submit a JOIN_GROUP transaction through the Home bridge. For the minting group the
@@ -320,25 +364,13 @@ export async function startMinting(actions?: QdnAction[]): Promise<StartMintingR
   return qdnRequest<StartMintingResult>({ action: 'START_MINTING' });
 }
 
-function getFirstRegisteredName(names: NameSummary[]) {
-  for (const summary of names) {
-    const name = normalizeRegisteredName(summary.name);
-
-    if (name) {
-      return name;
-    }
-  }
-
-  return null;
-}
-
 function resolveMintingAccountAddress(account: NodeMintingAccount) {
   return normalizeRegisteredName(account.address) ?? normalizeRegisteredName(account.mintingAccount);
 }
 
 // Avatar/name resolution is expensive (QDN resource fetch) and effectively
 // static, so share one in-flight Promise per address+actions across refreshes.
-function resolveAvatarProfile(address: string, actions?: QdnAction[]): Promise<AvatarProfile> {
+function resolveAvatarProfile(address: string, actions?: QdnAction[]): Promise<IdentityProfile> {
   const cacheKey = `${address}\n${(actions ?? []).join(',')}`;
   const cached = avatarProfileCache.get(cacheKey);
 
@@ -346,7 +378,7 @@ function resolveAvatarProfile(address: string, actions?: QdnAction[]): Promise<A
     return cached;
   }
 
-  const pending = loadAvatarProfile({ actions, address }).catch((error: unknown) => {
+  const pending = loadIdentityProfile(address, actions).catch((error: unknown) => {
     // Do not cache failures; allow a later refresh to retry.
     avatarProfileCache.delete(cacheKey);
 
@@ -442,13 +474,14 @@ function toBlockSummary(
   height: number,
   block: NodeBlockData | null,
   mintingInfo: BlockMintingInfo | null,
-  minterName: string | null,
+  identity: IdentityProfile | null,
 ): BlockSummary {
   return {
     height,
+    minterAvatarSrc: identity?.avatarSrc ?? null,
     minterAddress: normalizeRegisteredName(mintingInfo?.minterAddress),
     minterLevel: typeof mintingInfo?.minterLevel === 'number' ? mintingInfo.minterLevel : null,
-    minterName,
+    minterName: identity?.name ?? null,
     onlineAccountsCount:
       typeof mintingInfo?.onlineAccountsCount === 'number'
         ? mintingInfo.onlineAccountsCount
@@ -465,70 +498,36 @@ function toBlockSummary(
   };
 }
 
-async function resolveMinterName(address: string | null, actions?: QdnAction[]) {
-  if (!address) {
-    return null;
-  }
+export async function getBlocksAtHeights(
+  requestedHeights: number[],
+  actions?: QdnAction[],
+): Promise<BlockSummary[]> {
+  const heights = [...new Set(
+    requestedHeights
+      .map((height) => Math.trunc(height))
+      .filter((height) => height > 0),
+  )].sort((left, right) => right - left);
 
-  const cached = minterNameCache.get(address);
+  if (!heights.length) return [];
 
-  if (cached !== undefined) {
-    return cached;
-  }
+  const blocksByHeight = new Map<number, NodeBlockData>();
 
-  const pending = (async () => {
+  await mapWithConcurrency(groupContiguousDescending(heights), 4, async (group) => {
     try {
-      // Prefer the account's primary name (consistent display everywhere); setting a
-      // primary is optional, so fall back to the first registered name when there is none.
-      const primary = await getPrimaryName(address);
-      if (primary) {
-        return primary;
-      }
+      const range = await fetchNodeApiData<NodeBlockData[]>(
+        buildBlockRangePath(group[0], group.length),
+        'Block range',
+      );
 
-      return getFirstRegisteredName(await getAccountNames(address, actions));
+      for (const block of range) {
+        if (typeof block.height === 'number') blocksByHeight.set(block.height, block);
+      }
     } catch {
-      return null;
+      // The per-height fallback below handles unavailable range calls.
     }
-  })();
+  });
 
-  setCapped(minterNameCache, address, pending, NAME_CACHE_MAX_ENTRIES);
-
-  return pending;
-}
-
-export async function getRecentBlocks(count = DEFAULT_RECENT_BLOCKS, actions?: QdnAction[]): Promise<BlockSummary[]> {
-  const requestedCount = Math.max(0, Math.trunc(count));
-
-  if (requestedCount === 0) {
-    return [];
-  }
-
-  const currentHeight = await getCurrentHeight();
-  const startHeight = currentHeight;
-  const lowestHeight = Math.max(1, startHeight - requestedCount + 1);
-  const heights: number[] = [];
-
-  for (let height = startHeight; height >= lowestHeight; height -= 1) {
-    heights.push(height);
-  }
-
-  // Reverse-ordered range gives the newest blocks first in one call; fall back
-  // to per-height fetches when the range endpoint is unavailable.
-  let blocksByHeight = new Map<number, NodeBlockData>();
-
-  try {
-    const range = await fetchNodeApiData<NodeBlockData[]>(buildBlockRangePath(startHeight, requestedCount), 'Block range');
-
-    for (const block of range) {
-      if (typeof block.height === 'number') {
-        blocksByHeight.set(block.height, block);
-      }
-    }
-  } catch {
-    blocksByHeight = new Map<number, NodeBlockData>();
-  }
-
-  return mapWithConcurrency(heights, BLOCK_FETCH_CONCURRENCY, async (height) => {
+  const base = await mapWithConcurrency(heights, BLOCK_FETCH_CONCURRENCY, async (height) => {
     let block = blocksByHeight.get(height) ?? null;
 
     if (!block) {
@@ -547,18 +546,33 @@ export async function getRecentBlocks(count = DEFAULT_RECENT_BLOCKS, actions?: Q
       mintingInfo = null;
     }
 
-    const minterName = await resolveMinterName(normalizeRegisteredName(mintingInfo?.minterAddress), actions);
+    return { block, height, mintingInfo };
+  });
 
-    return toBlockSummary(height, block, mintingInfo, minterName);
+  const minterAddresses = base
+    .map(({ mintingInfo }) => normalizeRegisteredName(mintingInfo?.minterAddress))
+    .filter((address): address is string => !!address);
+  const identities = await loadIdentityProfiles([...new Set(minterAddresses)], actions);
+  const identitiesByAddress = new Map(identities.map((profile) => [profile.address, profile]));
+
+  return base.map(({ block, height, mintingInfo }) => {
+    const address = normalizeRegisteredName(mintingInfo?.minterAddress);
+    return toBlockSummary(height, block, mintingInfo, address ? identitiesByAddress.get(address) ?? null : null);
   });
 }
 
-// Online accounts decoded from a specific block via /blocks/onlineaccounts/{height}
-// — historically accurate for that block. NOTE: on Previewnet today this returns []
-// for every block (Core's decode yields no self-shares despite onlineAccountsCount
-// > 0). The current online set is shown separately at the top of the UI via
-// getCurrentOnlineAccounts; this is reserved for payout blocks once batch rewards
-// activate.
+export async function getRecentBlocks(count = DEFAULT_RECENT_BLOCKS, actions?: QdnAction[]): Promise<BlockSummary[]> {
+  const requestedCount = Math.max(0, Math.trunc(count));
+  if (requestedCount === 0) return [];
+
+  const currentHeight = await getCurrentHeight();
+  return getBlocksAtHeights(
+    Array.from({ length: requestedCount }, (_, index) => currentHeight - index).filter((height) => height > 0),
+    actions,
+  );
+}
+
+// Online accounts decoded from a specific block via /blocks/onlineaccounts/{height}.
 export async function getBlockOnlineAccounts(
   height: number,
   actions?: QdnAction[],
@@ -567,16 +581,19 @@ export async function getBlockOnlineAccounts(
     buildBlockOnlineAccountsPath(height),
     'Block online accounts',
   );
-  return mapWithConcurrency(raw, BLOCK_FETCH_CONCURRENCY, async (entry) => {
-    // Resolve the display name the SAME way as the block minter (first registered name)
-    // so an account that owns multiple names shows consistently in the minter row and the
-    // online-accounts list. Core's entry.name picks an arbitrary one of the owner's names.
-    const name = (await resolveMinterName(entry.minter, actions)) ?? normalizeRegisteredName(entry.name);
+  const identities = await loadIdentityProfiles(
+    [...new Set(raw.map((entry) => entry.minter).filter(Boolean))],
+    actions,
+  );
+  const identitiesByAddress = new Map(identities.map((profile) => [profile.address, profile]));
 
+  return raw.map((entry) => {
+    const profile = identitiesByAddress.get(entry.minter);
     return {
+      avatarSrc: profile?.avatarSrc ?? null,
       level: typeof entry.level === 'number' ? entry.level : null,
       minter: entry.minter,
-      name,
+      name: profile?.name ?? normalizeRegisteredName(entry.name),
       onlineTimestamp: typeof entry.onlineTimestamp === 'number' ? entry.onlineTimestamp : null,
       recipient: normalizeRegisteredName(entry.recipient),
       sharePercent: typeof entry.sharePercent === 'number' ? entry.sharePercent : null,
@@ -590,7 +607,10 @@ export async function getBlockOnlineAccounts(
 // write-approval and takes the key as `publicKey`); it is also available in browser-dev
 // when VITE_QORTIUM_NODE_API_KEY is set. Callers should check
 // hasAction(actions, 'REMOVE_MINTING_ACCOUNT') first.
-export async function removeMintingAccount(publicKey: string, actions?: QdnAction[]): Promise<void> {
+export async function removeMintingAccount(
+  publicKey: string,
+  actions?: QdnAction[],
+): Promise<RemoveMintingAccountResult> {
   if (!publicKey) {
     throw new Error('A public key is required to remove a minting key.');
   }
@@ -601,7 +621,7 @@ export async function removeMintingAccount(publicKey: string, actions?: QdnActio
     );
   }
 
-  await qdnRequest<unknown>({ action: 'REMOVE_MINTING_ACCOUNT', publicKey });
+  return qdnRequest<RemoveMintingAccountResult>({ action: 'REMOVE_MINTING_ACCOUNT', publicKey });
 }
 
 // Current online accounts from /addresses/online (ApiOnlineAccount in Core).
@@ -612,14 +632,18 @@ export async function getCurrentOnlineAccounts(actions?: QdnAction[]): Promise<O
     buildCurrentOnlineAccountsPath(),
     'Current online accounts',
   );
-  return mapWithConcurrency(raw, BLOCK_FETCH_CONCURRENCY, async (entry) => {
-    const minter = entry.minterAddress ?? '';
-    const name = minter ? await resolveMinterName(minter, actions) : null;
+  const addresses = [...new Set(raw.map((entry) => entry.minterAddress ?? '').filter(Boolean))];
+  const identities = await loadIdentityProfiles(addresses, actions);
+  const identitiesByAddress = new Map(identities.map((profile) => [profile.address, profile]));
 
+  return raw.map((entry) => {
+    const minter = entry.minterAddress ?? '';
+    const profile = identitiesByAddress.get(minter);
     return {
+      avatarSrc: profile?.avatarSrc ?? null,
       level: typeof entry.minterLevel === 'number' ? entry.minterLevel : null,
       minter,
-      name,
+      name: profile?.name ?? null,
       onlineTimestamp: typeof entry.timestamp === 'number' ? entry.timestamp : null,
       recipient: entry.recipientAddress ?? null,
       sharePercent: null,
@@ -629,44 +653,4 @@ export async function getCurrentOnlineAccounts(actions?: QdnAction[]): Promise<O
 
 export function getPayoutConfig(): ChainPayoutConfig {
   return { ...PREVIEWNET_PAYOUT_CONFIG };
-}
-
-// Mirrors Qortium Core Block.isBatchRewardDistributionActive: the batch feature
-// is only active strictly after the start height.
-function isBatchRewardDistributionActive(height: number, config: ChainPayoutConfig) {
-  return height > config.blockRewardBatchStartHeight;
-}
-
-// Mirrors Qortium Core Block.getNextBatchDistributionBlockHeight.
-function getNextBatchDistributionBlockHeight(height: number, config: ChainPayoutConfig) {
-  const batchSize = config.blockRewardBatchSize;
-
-  if (height % batchSize === 0) {
-    return height;
-  }
-
-  return height + (batchSize - (height % batchSize));
-}
-
-// Mirrors Qortium Core Block.isOnlineAccountsBlock: before the start height every
-// block carries online accounts; from the start height on, only the trailing
-// `accountsBlockCount` blocks before each batch boundary do.
-export function isOnlineAccountsBlock(height: number, config: ChainPayoutConfig) {
-  if (height >= config.blockRewardBatchStartHeight) {
-    const leadingBlockCount = config.blockRewardBatchAccountsBlockCount;
-
-    return height >= getNextBatchDistributionBlockHeight(height, config) - leadingBlockCount;
-  }
-
-  return true;
-}
-
-// Mirrors Qortium Core Block.isBatchRewardDistributionBlock: payout blocks are
-// batch-size multiples once the batch feature is active.
-export function isPayoutBlock(height: number, config: ChainPayoutConfig) {
-  if (!isBatchRewardDistributionActive(height, config)) {
-    return false;
-  }
-
-  return height % config.blockRewardBatchSize === 0;
 }
