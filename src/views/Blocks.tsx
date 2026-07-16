@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { isOnlineAccountsBlock, isPayoutBlock } from '../blockFilter';
-import { Avatar, EmptyState, Notice, SkeletonPanel } from '../ui';
+import { AccountLink, EmptyState, Notice, SkeletonPanel } from '../ui';
 import type { BlockSummary, ChainPayoutConfig, OnlineAccountEntry } from '../types';
 
 type AsyncState<T> = { error?: string; loading: boolean; value: T };
@@ -28,9 +28,11 @@ function formatRelative(timestamp: number | null, now: number) {
 function OnlineAccountsTable({
   entries,
   emptyLabel,
+  onOpenAccount,
 }: {
   entries: OnlineAccountEntry[];
   emptyLabel: string;
+  onOpenAccount: (address: string) => void;
 }) {
   if (!entries.length) return <EmptyState>{emptyLabel}</EmptyState>;
 
@@ -49,14 +51,12 @@ function OnlineAccountsTable({
           {entries.map((entry, index) => (
             <tr key={`${entry.minter}-${index}`}>
               <td>
-                <span className="identity" title={entry.minter}>
-                  <Avatar
-                    className="identity__avatar"
-                    name={entry.name}
-                    src={entry.avatarSrc}
-                  />
-                  <span>{entry.name ?? shortAddress(entry.minter)}</span>
-                </span>
+                <AccountLink
+                  address={entry.minter}
+                  avatarSrc={entry.avatarSrc}
+                  name={entry.name}
+                  onOpen={onOpenAccount}
+                />
               </td>
               <td className="mono">{entry.level ?? '—'}</td>
               <td>{entry.sharePercent === null ? '—' : `${entry.sharePercent / 100}%`}</td>
@@ -82,6 +82,7 @@ export function Blocks({
   now,
   onlineAccounts,
   onlineNow,
+  onOpenAccount,
   onShowMore,
   onToggle,
   setSkipEmpty,
@@ -97,6 +98,7 @@ export function Blocks({
   now: number;
   onlineAccounts: Map<number, BlockOnlineState>;
   onlineNow: AsyncState<OnlineAccountEntry[]>;
+  onOpenAccount: (address: string) => void;
   onShowMore: () => void;
   onToggle: (height: number) => void;
   setSkipEmpty: (value: boolean) => void;
@@ -119,7 +121,13 @@ export function Blocks({
         {onlineNow.error ? <Notice tone="error">{onlineNow.error}</Notice> : null}
         {onlineNow.loading && !onlineNow.value.length
           ? <SkeletonPanel label="Loading online accounts" />
-          : <OnlineAccountsTable entries={onlineNow.value} emptyLabel="No accounts are currently online." />}
+          : (
+              <OnlineAccountsTable
+                entries={onlineNow.value}
+                emptyLabel="No accounts are currently online."
+                onOpenAccount={onOpenAccount}
+              />
+            )}
       </div>
 
       <div className="card">
@@ -158,22 +166,35 @@ export function Blocks({
               const state = onlineAccounts.get(block.height);
               const summary = (
                 <>
-                  <span className="block-row__height">
-                    {expandable
-                      ? expanded === block.height
+                  {expandable ? (
+                    <button
+                      aria-expanded={expanded === block.height}
+                      aria-label={`${expanded === block.height ? 'Collapse' : 'Expand'} block ${block.height}`}
+                      className="block-toggle"
+                      onClick={() => onToggle(block.height)}
+                      type="button"
+                    >
+                      {expanded === block.height
                         ? <ChevronDown aria-hidden="true" size={16} />
-                        : <ChevronRight aria-hidden="true" size={16} />
-                      : null}
-                    <strong className="mono">#{block.height.toLocaleString()}</strong>
-                  </span>
-                  <span className="block-minter" title={block.minterAddress ?? undefined}>
-                    <Avatar
-                      className="identity__avatar"
+                        : <ChevronRight aria-hidden="true" size={16} />}
+                      <strong className="mono">#{block.height.toLocaleString()}</strong>
+                    </button>
+                  ) : (
+                    <span className="block-row__height">
+                      <strong className="mono">#{block.height.toLocaleString()}</strong>
+                    </span>
+                  )}
+                  {block.minterAddress ? (
+                    <AccountLink
+                      address={block.minterAddress}
+                      avatarSrc={block.minterAvatarSrc}
+                      className="block-minter"
                       name={block.minterName}
-                      src={block.minterAvatarSrc}
+                      onOpen={onOpenAccount}
                     />
-                    <span>{block.minterName ?? (block.minterAddress ? shortAddress(block.minterAddress) : 'Unknown minter')}</span>
-                  </span>
+                  ) : (
+                    <span className="block-minter">Unknown minter</span>
+                  )}
                   <span>{block.onlineAccountsCount ?? '—'} online</span>
                   <span>
                     {payout ? <span className="pill">Payout</span> : null}
@@ -190,18 +211,7 @@ export function Blocks({
 
               return (
                 <li className="block-row" key={block.height}>
-                  {expandable ? (
-                    <button
-                      aria-expanded={expanded === block.height}
-                      className="block-row__summary"
-                      onClick={() => onToggle(block.height)}
-                      type="button"
-                    >
-                      {summary}
-                    </button>
-                  ) : (
-                    <div className="block-row__summary block-row__summary--static">{summary}</div>
-                  )}
+                  <div className="block-row__summary">{summary}</div>
 
                   {payout ? (
                     <p className="field-help">
@@ -217,6 +227,7 @@ export function Blocks({
                         <OnlineAccountsTable
                           entries={state.entries}
                           emptyLabel="No online accounts were recorded for this block."
+                          onOpenAccount={onOpenAccount}
                         />
                       ) : null}
                     </div>

@@ -1,7 +1,16 @@
 import { useMemo } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { changeSortState, sortMinters, type SortState } from '../minterSort';
-import { Avatar, EmptyState, Identity, Notice, SkeletonPanel, SortHeader } from '../ui';
+import {
+  AccountLink,
+  Avatar,
+  CopyAddressButton,
+  CopyTextButton,
+  EmptyState,
+  Notice,
+  SkeletonPanel,
+  SortHeader,
+} from '../ui';
 import type { AccountEnrichment, MinterRow, ResolvedIdentity } from '../types';
 
 export function Minters({
@@ -35,9 +44,25 @@ export function Minters({
 
   if (selected) {
     const row = rows.find((item) => item.address === selected);
-    if (!row) return null;
+    if (!row) {
+      if (loading || (!rows.length && !error)) {
+        return <SkeletonPanel label="Loading account details" />;
+      }
+
+      return (
+        <section className="workspace detail">
+          <button className="minor-button" onClick={() => onSelect('')} type="button">
+            <ArrowLeft size={15} />
+            Back to minters
+          </button>
+          <Notice tone="warning">This account is not in the current minting group.</Notice>
+        </section>
+      );
+    }
+
     const info = enrichment.get(selected);
     const profile = profiles.get(selected);
+    const name = profile?.name ?? row.primaryName ?? null;
 
     return (
       <section className="workspace detail">
@@ -46,13 +71,29 @@ export function Minters({
           Back to minters
         </button>
         <div className="card detail-card">
-          <Avatar
-            className="detail-avatar"
-            name={profile?.name ?? row.primaryName ?? null}
-            src={profile?.avatarSrc ?? null}
-          />
-          <h2>{profile?.name ?? row.primaryName ?? row.address}</h2>
-          <p className="mono">{row.address}</p>
+          <div className="account-detail">
+            <Avatar
+              className="detail-avatar"
+              name={name}
+              src={profile?.avatarSrc ?? null}
+            />
+            <div className="account-detail__text">
+              <div className="account-detail__line">
+                <h2>{name ?? 'Unnamed account'}</h2>
+                {name ? (
+                  <CopyTextButton
+                    label={`Copy ${name}`}
+                    text={name}
+                    textLabel="Copy name"
+                  />
+                ) : null}
+              </div>
+              <div className="account-detail__line account-detail__address">
+                <p className="mono">{row.address}</p>
+                <CopyAddressButton address={row.address} />
+              </div>
+            </div>
+          </div>
           {selectedAddress === selected ? <span className="pill">This is you</span> : null}
           <dl className="stats-grid">
             <div><dt>Level</dt><dd>{info?.level ?? '—'}</dd></div>
@@ -107,22 +148,13 @@ export function Minters({
                 const info = enrichment.get(row.address);
 
                 return (
-                  <tr
-                    key={row.address}
-                    onClick={() => onSelect(row.address)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        onSelect(row.address);
-                      }
-                    }}
-                    tabIndex={0}
-                  >
+                  <tr key={row.address}>
                     <td>
-                      <Identity
+                      <AccountLink
                         address={row.address}
                         avatarSrc={profile?.avatarSrc ?? null}
                         name={profile?.name ?? row.primaryName ?? null}
+                        onOpen={onSelect}
                       />
                       {row.isAdmin ? <span className="pill">Admin</span> : null}
                     </td>

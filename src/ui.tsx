@@ -44,12 +44,14 @@ export function Avatar({
   );
 }
 
-export function CopyAddressButton({
-  address,
-  label = 'Copy address',
+export function CopyTextButton({
+  label,
+  text,
+  textLabel = 'Copy',
 }: {
-  address: string;
-  label?: string;
+  label: string;
+  text: string;
+  textLabel?: string;
 }) {
   const [status, setStatus] = useState<'copied' | 'error' | 'idle'>('idle');
   const timer = useRef(0);
@@ -59,7 +61,7 @@ export function CopyAddressButton({
     event.stopPropagation();
     window.clearTimeout(timer.current);
 
-    setStatus(await copyTextToClipboard(address) ? 'copied' : 'error');
+    setStatus(await copyTextToClipboard(text) ? 'copied' : 'error');
 
     timer.current = window.setTimeout(() => setStatus('idle'), 1_800);
   }
@@ -72,28 +74,52 @@ export function CopyAddressButton({
       type="button"
     >
       <Copy size={14} />
-      {status === 'copied' ? 'Copied' : status === 'error' ? 'Copy failed' : 'Copy'}
+      {status === 'copied' ? 'Copied' : status === 'error' ? 'Copy failed' : textLabel}
     </button>
   );
 }
 
-export function Identity({
+export function CopyAddressButton({
+  address,
+  label = 'Copy address',
+  textLabel = 'Copy address',
+}: {
+  address: string;
+  label?: string;
+  textLabel?: string;
+}) {
+  return <CopyTextButton label={label} text={address} textLabel={textLabel} />;
+}
+
+export function AccountLink({
   address,
   avatarSrc,
+  className = '',
   name,
+  onOpen,
 }: {
   address: string;
   avatarSrc: string | null;
+  className?: string;
   name: string | null;
+  onOpen: (address: string) => void;
 }) {
   const label = name ?? `${address.slice(0, 8)}…${address.slice(-6)}`;
 
   return (
-    <span className="identity" title={address}>
+    <button
+      aria-label={`View ${name ?? address}`}
+      className={`account-link ${className}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen(address);
+      }}
+      title={address}
+      type="button"
+    >
       <Avatar className="identity__avatar" name={name} src={avatarSrc} />
       <span className={name ? '' : 'mono'}>{label}</span>
-      <CopyAddressButton address={address} label={`Copy ${label} address`} />
-    </span>
+    </button>
   );
 }
 

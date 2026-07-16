@@ -7,7 +7,14 @@ import type {
   QdnSelectedAccount,
   ResolvedIdentity,
 } from '../types';
-import { Avatar, CopyAddressButton, EmptyState, Notice, SkeletonPanel, StatTile } from '../ui';
+import {
+  AccountLink,
+  CopyAddressButton,
+  EmptyState,
+  Notice,
+  SkeletonPanel,
+  StatTile,
+} from '../ui';
 
 type AsyncState<T> = { error?: string; loading: boolean; value: T };
 
@@ -40,11 +47,13 @@ function pendingLabel(pending: PendingAction) {
 function MintingAccount({
   account,
   canRemove,
+  onOpenAccount,
   onRemove,
   pending,
 }: {
   account: MintingAccountInfo;
   canRemove: boolean;
+  onOpenAccount: (address: string) => void;
   onRemove: (account: MintingAccountInfo) => void;
   pending: PendingAction | null;
 }) {
@@ -55,9 +64,13 @@ function MintingAccount({
 
   return (
     <article className="minting-account">
-      <Avatar className="identity__avatar" name={account.name} src={account.avatarSrc} />
       <div>
-        <strong title={account.address}>{account.name ?? account.address}</strong>
+        <AccountLink
+          address={account.address}
+          avatarSrc={account.avatarSrc}
+          name={account.name}
+          onOpen={onOpenAccount}
+        />
         <p className="mono">
           Level {account.level ?? '—'} · {account.blocksMinted?.toLocaleString() ?? '—'} blocks
         </p>
@@ -106,6 +119,7 @@ export function MyMinting({
   identity,
   onBlocks,
   onJoin,
+  onOpenAccount,
   onRemove,
   onStart,
   onlineCount,
@@ -121,6 +135,7 @@ export function MyMinting({
   identity: ResolvedIdentity | null;
   onBlocks: () => void;
   onJoin: () => void;
+  onOpenAccount: (address: string) => void;
   onRemove: (account: MintingAccountInfo) => void;
   onStart: () => void;
   onlineCount: number;
@@ -147,15 +162,13 @@ export function MyMinting({
 
         {account ? (
           <div className="selected-account" title={account.address}>
-            <Avatar
-              className="identity__avatar"
+            <AccountLink
+              address={account.address}
+              avatarSrc={identity?.avatarSrc ?? account.avatarUrl}
               name={name}
-              src={identity?.avatarSrc ?? account.avatarUrl}
+              onOpen={onOpenAccount}
             />
-            <div>
-              <strong>{name ?? account.address}</strong>
-              <p className="mono">{account.address}</p>
-            </div>
+            <p className="mono">{account.address}</p>
           </div>
         ) : (
           <p className="muted">Choose an account in Qortium Home to manage its minting.</p>
@@ -233,6 +246,7 @@ export function MyMinting({
               account={item}
               canRemove={canRemove}
               key={item.address}
+              onOpenAccount={onOpenAccount}
               onRemove={onRemove}
               pending={pending}
             />
