@@ -1,74 +1,72 @@
 # Qortium Minting
 
-A small QDN app for Qortium Home that reports the minting state of the connected
-node. It shows whether the node is currently minting, the minting-key account's
-on-chain info (address, registered name, level, blocks minted, balance), and a
-list of recent blocks together with the online accounts that signed them, using
-the current `qdnRequest` bridge.
+A QDN app for monitoring and managing minting on the Core node connected to
+Qortium Home. It shows node minting state, active minting accounts, selected
+account identity and authorization state, current online accounts, and recent
+blocks with the online accounts that signed them.
 
-The app holds no private keys and never signs transactions directly. All reads
-go through Qortium Home's `qdnRequest` bridge when available, with a read-only
-local Core node API fallback for plain browser development.
+## Minting management
 
-## Development
+Inside Qortium Home, the app feature-detects bridge actions before offering
+writes. The current start flow can:
 
-Install dependencies:
+1. read the selected account and ask Home to unlock it;
+2. join Previewnet minting group `2` when the account is not yet a member;
+3. submit minting authorization through `START_MINTING` when needed;
+4. add the derived minting key to the connected node after authorization; and
+5. remove a listed minting key through `REMOVE_MINTING_ACCOUNT`.
+
+Home builds, approves, signs, and broadcasts the account operations; the app
+does not hold private keys or sign transactions itself.
+
+Without `window.qdnRequest`, the plain-browser fallback reads the local Core API
+at `http://127.0.0.1:24891`. It has no selected account, unlock, join-group, or
+start-minting flow. An explicit `VITE_QORTIUM_NODE_API_KEY` can enable local
+minting-key removal for development; otherwise browser mode is read-only. Set
+`VITE_QORTIUM_NODE_API_URL` to point reads at another node.
+
+## QAVS and UI styles
+
+The app is at QAVS `1.4.0`: the `1.4` portion is its minimum Qortium platform
+level and the patch number tracks the app release. `vite.config.ts` reads the
+package version, injects the visible version badge, and emits
+`dist/qortium-app.json` with the name `Minting` during every build.
+
+Minting supports Classic and Modern QDN UI styles and follows Home theme,
+accent, language, and text-size settings. It does not define a Fun style.
+
+## Development and verification
 
 ```sh
 npm install
-```
-
-Run the app locally:
-
-```sh
 npm run dev -- --host 127.0.0.1
+npm test
+npm run build
+npm run preview
 ```
 
-The local browser fallback reads from `http://127.0.0.1:24891` by default. Set
-`VITE_QORTIUM_NODE_API_URL` to use another node during development.
+For an embedded smoke check, open `qdn://APP/Minting/Minting` in Qortium Home
+with a selected account. Confirm that node status, active keys, online accounts,
+and recent blocks load; display-setting changes apply; and only the bridge
+actions advertised by the current Home build appear as management controls.
 
-Build and publish the app to the local Previewnet QDN test name:
+## Previewnet publish
 
 ```sh
 npm run build
 npm run qdn:publish
 ```
 
-By default the publish helper uploads `dist/` as `qdn://APP/Minting/Minting`
-through `http://127.0.0.1:24891`, using the local preview account files under
-`~/git/qortium/preview`. The helper uses `QORTIUM_MINTING_NODE_API_KEY` or
-`QORTIUM_MINTING_NODE_API_KEY_PATH` when set, then tries the API key for the
-active local Core process, and finally falls back to
-`~/.config/qortium-core/runtime/apikey.txt`. Set `QORTIUM_MINTING_QDN_NAME`,
-`QORTIUM_MINTING_QDN_IDENTIFIER`, `QORTIUM_MINTING_QDN_TITLE`, or
-`QORTIUM_MINTING_QDN_SERVICE` to publish another QDN resource.
+The publisher uploads `dist/` as `APP/Minting/Minting` through the local Core at
+`http://127.0.0.1:24891`. Its default account file is
+`~/qortium/git/qortium-core/preview/secrets/initial-minting-accounts.json`.
+API-key, node, account-file, identity, title, service, and dist overrides use the
+`QORTIUM_MINTING_` prefix.
 
-## Qortium Home Smoke Check
+The identified render URL is
+`http://127.0.0.1:24891/render/APP/Minting/Minting`. After publishing, the helper
+waits for `/arbitrary/resource/status/APP/Minting/Minting?build=true` to report
+`READY`.
 
-Before publishing a new QDN build:
-
-```sh
-npm test
-npm run build
-```
-
-Then open `qdn://APP/Minting/Minting` in Qortium Home with a local node
-selected and an unlocked tab account. Confirm that the status pill reports Home,
-the node minting state loads, the minting-key account summary renders, recent
-blocks and their online accounts load, and Home display settings update theme,
-text size, accent, and language in the app.
-
-For a publish pass, confirm the local Core is fully synchronized before running
-`npm run qdn:publish`. The expected identified render URL is
-`http://127.0.0.1:24891/render/APP/Minting/Minting` (Home now passes the
-identifier as a path segment; Core injects a matching `<base href>` so bundled
-relative assets resolve under it), and the
-published resource should report `READY` at
-`/arbitrary/resource/status/APP/Minting/Minting?build=true`.
-
-## Current Limits
-
-This app does not handle private keys or transaction signing directly. It is a
-read-only view of node and chain minting state. Browser development remains
-read-only and reads directly from the local Core node API. The app targets
-Qortium Previewnet (node API port `24891`).
+The app currently targets Qortium Previewnet, whose default local Core API port
+is `24891`.
