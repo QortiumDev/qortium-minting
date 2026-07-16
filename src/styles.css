@@ -782,3 +782,145 @@ td { overflow-wrap: anywhere; }
     width: 100%;
   }
 }
+
+/* Responsive page width and account navigation. Modern keeps a roomier outer
+   gutter, while Classic and Fun use more of the available app window. */
+html {
+  scrollbar-gutter: stable;
+}
+
+.app-shell {
+  margin-inline: 0;
+  max-width: none;
+  padding: clamp(10px, 1.25vw, 20px);
+  width: 100%;
+}
+
+:root[data-ui='modern'] .app-shell {
+  max-width: none;
+  padding-block: clamp(18px, 2.4vw, 36px);
+  padding-inline: clamp(16px, 3vw, 48px);
+}
+
+:root[data-ui='fun'] .app-shell {
+  max-width: none;
+  padding: clamp(10px, 1.5vw, 24px);
+}
+
+.account-link,
+.block-toggle {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--qm-text-primary);
+  min-height: auto;
+  padding: 0;
+}
+
+.account-link {
+  align-items: center;
+  border-radius: var(--qm-radius);
+  display: inline-flex;
+  gap: calc(8px * var(--qm-text-scale));
+  justify-content: flex-start;
+  max-width: 100%;
+  min-width: 0;
+  text-align: start;
+}
+
+.account-link > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-link:hover:not(:disabled),
+.block-toggle:hover:not(:disabled) {
+  background: var(--qm-accent-soft);
+  color: var(--qm-text-primary);
+}
+
+.account-link:focus-visible,
+.block-toggle:focus-visible {
+  outline: 2px solid var(--qm-accent);
+  outline-offset: 3px;
+}
+
+.table-wrap tbody tr {
+  cursor: default;
+}
+
+.table-wrap tbody tr:has(.account-link):hover {
+  background: var(--qm-surface-alt);
+}
+
+.block-row__summary {
+  align-items: center;
+  min-height: 2.45em;
+  padding: 0.55em 0.8em;
+}
+
+.block-toggle {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.4em;
+  justify-content: flex-start;
+}
+
+.block-minter {
+  width: fit-content;
+}
+
+.account-detail {
+  align-items: center;
+  display: flex;
+  gap: clamp(12px, 2vw, 20px);
+  min-width: 0;
+}
+
+.account-detail__text {
+  display: grid;
+  gap: 0.5em;
+  min-width: 0;
+}
+
+.account-detail__line {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em;
+  min-width: 0;
+}
+
+.account-detail__address p {
+  overflow-wrap: anywhere;
+}
+
+.selected-account {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+:root[data-ui='fun'] .account-link,
+:root[data-ui='fun'] .block-toggle {
+  border: 0;
+  box-shadow: none;
+}
+
+:root[data-ui='fun'] .account-link:hover:not(:disabled),
+:root[data-ui='fun'] .block-toggle:hover:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
+
+@media (max-width: 560px) {
+  .account-detail {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .account-detail__line {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

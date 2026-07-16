@@ -39,14 +39,16 @@ minting-key removal for development; otherwise browser mode is read-only. Set
 
 ## QAVS and UI styles
 
-The app is at QAVS `1.4.1`: the `1.4` portion is its minimum Qortium platform
+The app is at QAVS `1.4.2`: the `1.4` portion is its minimum Qortium platform
 level and the patch number tracks the app release. `vite.config.ts` reads the
 package version, injects the visible version badge, and emits
 `dist/qortium-app.json` with the name `Minting` during every build.
 
 Minting supports Classic, Modern, and Fun QDN UI styles and follows Home theme,
 accent, language, and text-size settings. All fonts are bundled locally; UI
-families intentionally preserve the accent selected in Home.
+families intentionally preserve the accent selected in Home. The workspace uses
+the full available app window with responsive gutters; Modern keeps the roomiest
+outer gutter while Classic and Fun stay tighter.
 
 ## Development and verification
 

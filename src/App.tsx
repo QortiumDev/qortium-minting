@@ -740,6 +740,15 @@ export default function App() {
     }
   }
 
+  function openAccount(address: string) {
+    setSelectedMinter(address);
+    setTab('minters');
+
+    if (!minters.value.length && !minters.loading) {
+      void loadMinters();
+    }
+  }
+
   const writeAvailable = !bridge.value.isUsingPublicNode;
   const canJoin = writeAvailable
     && !!account
@@ -823,6 +832,7 @@ export default function App() {
               () => joinGroup(MINTING_GROUP_ID, actions),
             );
           }}
+          onOpenAccount={openAccount}
           onRemove={(item) => {
             if (!item.publicKey) return;
             void submitWrite(
@@ -874,6 +884,7 @@ export default function App() {
           now={now}
           onlineAccounts={onlineByHeight}
           onlineNow={onlineNow}
+          onOpenAccount={openAccount}
           onShowMore={() => {
             const next = Math.min(MAX_BLOCK_COUNT, blockCount + BLOCK_COUNT_STEP);
             setBlockCount(next);
