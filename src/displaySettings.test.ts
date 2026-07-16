@@ -30,6 +30,7 @@ describe('display settings helpers', () => {
     expect(normalizeTextSize('extra-large')).toBe('extra-large');
     expect(normalizeAccent('blue')).toBe('blue');
     expect(normalizeUiStyle('MODERN')).toBe('modern');
+    expect(normalizeUiStyle('FUN')).toBe('fun');
   });
 
   it('rejects unsupported display values', () => {

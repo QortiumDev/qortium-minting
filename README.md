@@ -1,9 +1,21 @@
 # Qortium Minting
 
 A QDN app for monitoring and managing minting on the Core node connected to
-Qortium Home. It shows node minting state, active minting accounts, selected
-account identity and authorization state, current online accounts, and recent
-blocks with the online accounts that signed them.
+Qortium Home. Its tabbed workspace separates **My Minting**, **Minters**,
+**Blocks**, and an always-English **Developers** reference, rather than putting
+all data in one long page.
+
+My Minting focuses on the selected account, its key state, and actions. Minters
+lists all minting-group members with names, avatars, levels, blocks minted,
+multi-column sorting, and a detail view. Blocks keeps the full online-account
+data close to the block that recorded it. Once Previewnet batch rewards are
+active, **Skip empty blocks** is on by default and shows the ten online-account
+window blocks plus their payout block; the preference is remembered locally.
+
+The app polls the inexpensive chain height while visible and refreshes only the
+affected data when a new block arrives. It pauses both polling and its display
+ticker when the tab is hidden. The topbar refresh button always reloads the
+active workspace view without blanking already loaded tables.
 
 ## Minting management
 
@@ -27,13 +39,14 @@ minting-key removal for development; otherwise browser mode is read-only. Set
 
 ## QAVS and UI styles
 
-The app is at QAVS `1.4.0`: the `1.4` portion is its minimum Qortium platform
+The app is at QAVS `1.4.1`: the `1.4` portion is its minimum Qortium platform
 level and the patch number tracks the app release. `vite.config.ts` reads the
 package version, injects the visible version badge, and emits
 `dist/qortium-app.json` with the name `Minting` during every build.
 
-Minting supports Classic and Modern QDN UI styles and follows Home theme,
-accent, language, and text-size settings. It does not define a Fun style.
+Minting supports Classic, Modern, and Fun QDN UI styles and follows Home theme,
+accent, language, and text-size settings. All fonts are bundled locally; UI
+families intentionally preserve the accent selected in Home.
 
 ## Development and verification
 
@@ -46,9 +59,12 @@ npm run preview
 ```
 
 For an embedded smoke check, open `qdn://APP/Minting/Minting` in Qortium Home
-with a selected account. Confirm that node status, active keys, online accounts,
-and recent blocks load; display-setting changes apply; and only the bridge
-actions advertised by the current Home build appear as management controls.
+with a selected account. Confirm that node status, active keys, minters, online
+accounts, and recent blocks load; the batch filter leaves payout rows
+non-expandable; display-setting changes apply; and only the bridge actions
+advertised by the current Home build appear as management controls. The
+Developers tab contains endpoint and bridge-call detail that is deliberately
+kept out of the normal user flow.
 
 ## Previewnet publish
 

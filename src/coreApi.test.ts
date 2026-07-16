@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  getGroupMembers,
   isMintingGroupMember,
   MINTING_GROUP_ID,
+  responseData,
   resolveIdentities,
   startMinting,
 } from './coreApi';
@@ -61,5 +63,18 @@ describe('core API bridge helpers', () => {
 
     await expect(startMinting(['START_MINTING'])).resolves.toEqual(result);
     expect(qdnRequestMock).toHaveBeenCalledWith({ action: 'START_MINTING' });
+  });
+
+  it('unwraps successful responses and rejects failed ones', () => {
+    expect(responseData({ body: '', contentType: 'application/json', data: { ok: true }, ok: true, status: 200, statusText: 'OK' })).toEqual({ ok: true });
+    expect(() => responseData({ body: 'not available', contentType: 'text/plain', data: null, ok: false, status: 500, statusText: 'Error' })).toThrow('not available');
+  });
+
+  it('fetches group-member pages until a short page', async () => {
+    qdnRequestMock
+      .mockResolvedValueOnce({ members: Array.from({ length: 2 }, (_, index) => ({ member: `Q${index}` })) })
+      .mockResolvedValueOnce({ members: [{ member: 'Q2' }] });
+    await expect(getGroupMembers(2, ['GET_GROUP_MEMBERS'], 2)).resolves.toHaveLength(3);
+    expect(qdnRequestMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -3,6 +3,7 @@ export type QdnAction = string;
 export type BridgeState = {
   actions: QdnAction[];
   isHomeBridge: boolean;
+  isUsingPublicNode: boolean;
   ui: string;
 };
 
@@ -91,6 +92,13 @@ export type GroupActionResult = {
   transactionSignature?: string;
 };
 
+export type RemoveMintingAccountResult = {
+  accepted?: boolean;
+  action?: 'REMOVE_MINTING_ACCOUNT';
+  publicKey?: string;
+  removed?: boolean;
+};
+
 // Result of the Home bridge START_MINTING write action. Mirrors qortium-chat.
 // keyAdded: the minting key was loaded onto the node. rewardSharePending: an on-chain
 // self-share authorization was just submitted and must confirm before the key can be added.
@@ -159,6 +167,7 @@ export type NodeBlockData = {
 // A recent block, enriched with minter address/level/name from mintinginfo.
 export type BlockSummary = {
   height: number;
+  minterAvatarSrc: string | null;
   minterAddress: string | null;
   minterLevel: number | null;
   minterName: string | null;
@@ -170,6 +179,7 @@ export type BlockSummary = {
 // One signed online-account entry for a block.
 // Shape returned by GET /blocks/onlineaccounts/{height} (Core DecodedOnlineAccountData).
 export type OnlineAccountEntry = {
+  avatarSrc: string | null;
   level: number | null;
   minter: string;
   name: string | null;
@@ -194,4 +204,28 @@ export type ChainPayoutConfig = {
   blockRewardBatchAccountsBlockCount: number;
   blockRewardBatchSize: number;
   blockRewardBatchStartHeight: number;
+};
+
+export type GroupMember = {
+  isAdmin?: boolean;
+  joined?: number;
+  member: string;
+  primaryName?: string | null;
+};
+
+export type GroupMembersResponse = {
+  adminCount?: number;
+  memberCount?: number;
+  members?: GroupMember[];
+};
+
+export type AccountEnrichment = {
+  blocksMinted: number | null;
+  blocksMintedPenalty: number | null;
+  level: number | null;
+};
+
+export type MinterRow = GroupMember & {
+  address: string;
+  index: number;
 };
