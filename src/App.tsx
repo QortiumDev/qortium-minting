@@ -21,6 +21,7 @@ import {
   startMinting,
 } from './coreApi';
 import { interestingHeights } from './blockFilter';
+import { getMintingRouteUrl, readMintingRoute, type MintingTab } from './mintingRoute';
 import { getBridgeState, hasAction, qdnRequest } from './qdnRequest';
 import {
   applyDisplaySettings,
@@ -62,7 +63,7 @@ import type {
 } from './types';
 import type { SortState } from './minterSort';
 
-type Tab = 'status' | 'minters' | 'blocks' | 'reference';
+type Tab = MintingTab;
 type AsyncState<T> = { error?: string; loading: boolean; value: T };
 type Message = { text: string; tone: 'error' | 'info' | 'warning' } | null;
 type WriteResult = GroupActionResult | RemoveMintingAccountResult | StartMintingResult;
@@ -127,7 +128,7 @@ function pendingIsActive(pending: PendingAction | null) {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('status');
+  const [tab, setTab] = useState<Tab>(() => readMintingRoute(window.location.href).tab);
   const [bridge, setBridge] = useState<AsyncState<BridgeState>>(initial(emptyBridge));
   const [nodeStatus, setNodeStatus] = useState<NodeStatus | null>(null);
   const [height, setHeight] = useState<number | null>(null);
@@ -470,6 +471,25 @@ export default function App() {
   }, [settings]);
 
   useEffect(() => {
+    const applyRouteFromUrl = () => {
+      const route = readMintingRoute(window.location.href);
+      setSelectedMinter(null);
+      setTab(route.tab);
+    };
+
+    applyRouteFromUrl();
+
+    const current = new URL(window.location.href);
+    const canonical = getMintingRouteUrl(current, readMintingRoute(current));
+    if (canonical.href !== current.href) {
+      window.history.replaceState({}, '', canonical);
+    }
+
+    window.addEventListener('popstate', applyRouteFromUrl);
+    return () => window.removeEventListener('popstate', applyRouteFromUrl);
+  }, []);
+
+  useEffect(() => {
     const listener = (event: MessageEvent) => {
       setSettings((current) => getDisplaySettingsUpdateFromMessage(event.data, current) ?? current);
       if (isSelectedAccountChanged(event.data)) void loadSelectedAccount(actions);
@@ -740,9 +760,14 @@ export default function App() {
     }
   }
 
+  function navigateToTab(next: Tab) {
+    window.history.pushState({}, '', getMintingRouteUrl(window.location.href, { tab: next }));
+    setTab(next);
+  }
+
   function openAccount(address: string) {
     setSelectedMinter(address);
-    setTab('minters');
+    navigateToTab('minters');
 
     if (!minters.value.length && !minters.loading) {
       void loadMinters();
@@ -795,7 +820,7 @@ export default function App() {
             key={key}
             onClick={() => {
               setSelectedMinter(null);
-              setTab(key);
+              navigateToTab(key);
             }}
             type="button"
           >
@@ -822,7 +847,7 @@ export default function App() {
           canStart={canStart}
           details={details}
           identity={identity}
-          onBlocks={() => setTab('blocks')}
+          onBlocks={() => navigateToTab('blocks')}
           onJoin={() => {
             if (!account) return;
             void submitWrite(

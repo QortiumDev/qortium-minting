@@ -39,7 +39,7 @@ minting-key removal for development; otherwise browser mode is read-only. Set
 
 ## QAVS and UI styles
 
-The app is at QAVS `1.4.2`: the `1.4` portion is its minimum Qortium platform
+The app is at QAVS `1.4.3`: the `1.4` portion is its minimum Qortium platform
 level and the patch number tracks the app release. `vite.config.ts` reads the
 package version, injects the visible version badge, and emits
 `dist/qortium-app.json` with the name `Minting` during every build.
