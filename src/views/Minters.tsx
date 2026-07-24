@@ -73,9 +73,10 @@ export function Minters({
         <div className="card detail-card">
           <div className="account-detail">
             <Avatar
+              address={row.address}
               className="detail-avatar"
+              key={row.address}
               name={name}
-              src={profile?.avatarSrc ?? null}
             />
             <div className="account-detail__text">
               <div className="account-detail__line">
@@ -152,7 +153,6 @@ export function Minters({
                     <td>
                       <AccountLink
                         address={row.address}
-                        avatarSrc={profile?.avatarSrc ?? null}
                         name={profile?.name ?? row.primaryName ?? null}
                         onOpen={onSelect}
                       />

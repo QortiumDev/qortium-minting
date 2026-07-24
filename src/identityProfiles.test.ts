@@ -12,14 +12,12 @@ describe('identity profiles', () => {
     vi.mocked(hasHomeBridge).mockReturnValue(true);
   });
 
-  it('uses the batch identity action and preserves missing entries', async () => {
-    vi.mocked(qdnRequest).mockResolvedValue([
-      { address: 'Qone', name: 'one', avatarSrc: 'url' },
-    ]);
+  it('uses the batch identity action for names and discards legacy avatar URLs', async () => {
+    vi.mocked(qdnRequest).mockResolvedValue([{ address: 'Qone', name: 'one', avatarSrc: 'https://node/avatar' }]);
 
     await expect(loadIdentityProfiles(['Qone', 'Qtwo'], ['RESOLVE_IDENTITIES'])).resolves.toEqual([
-      { address: 'Qone', name: 'one', avatarSrc: 'url' },
-      { address: 'Qtwo', name: null, avatarSrc: null },
+      { address: 'Qone', name: 'one' },
+      { address: 'Qtwo', name: null },
     ]);
   });
 
@@ -27,35 +25,17 @@ describe('identity profiles', () => {
     const addresses = Array.from({ length: 501 }, (_, index) => `Q${index}`);
     vi.mocked(qdnRequest)
       .mockImplementationOnce(async (request) => {
-        const batch = 'addresses' in request && Array.isArray(request.addresses)
-          ? request.addresses
-          : [];
-        return [...batch].reverse().map((address) => ({
-          address,
-          avatarSrc: `avatar:${address}`,
-          name: `name:${address}`,
-        }));
+        const batch = 'addresses' in request && Array.isArray(request.addresses) ? request.addresses : [];
+        return [...batch].reverse().map((address) => ({ address, avatarSrc: `legacy:${address}`, name: `name:${address}` }));
       })
-      .mockResolvedValueOnce([
-        { address: 'Q500', avatarSrc: 'avatar:Q500', name: 'name:Q500' },
-      ]);
+      .mockResolvedValueOnce([{ address: 'Q500', avatarSrc: 'legacy:Q500', name: 'name:Q500' }]);
 
     const resolved = await loadIdentityProfiles(addresses, ['RESOLVE_IDENTITIES']);
 
-    expect(qdnRequest).toHaveBeenNthCalledWith(1, {
-      action: 'RESOLVE_IDENTITIES',
-      addresses: addresses.slice(0, 500),
-    });
-    expect(qdnRequest).toHaveBeenNthCalledWith(2, {
-      action: 'RESOLVE_IDENTITIES',
-      addresses: ['Q500'],
-    });
+    expect(qdnRequest).toHaveBeenNthCalledWith(1, { action: 'RESOLVE_IDENTITIES', addresses: addresses.slice(0, 500) });
+    expect(qdnRequest).toHaveBeenNthCalledWith(2, { action: 'RESOLVE_IDENTITIES', addresses: ['Q500'] });
     expect(resolved.map((profile) => profile.address)).toEqual(addresses);
-    expect(resolved[500]).toEqual({
-      address: 'Q500',
-      avatarSrc: 'avatar:Q500',
-      name: 'name:Q500',
-    });
+    expect(resolved[500]).toEqual({ address: 'Q500', name: 'name:Q500' });
   });
 
   it('normalizes empty names', () => expect(normalizeRegisteredName('')).toBeNull());

@@ -44,7 +44,7 @@ import { Blocks, type BlockOnlineState } from './views/Blocks';
 import { Minters } from './views/Minters';
 import { MyMinting, type SelectedMintingDetails } from './views/MyMinting';
 import { Reference } from './views/Reference';
-import { NodeSyncPill, Notice } from './ui';
+import { AvatarActionsProvider, NodeSyncPill, Notice } from './ui';
 import type {
   AccountEnrichment,
   BlockSummary,
@@ -787,7 +787,8 @@ export default function App() {
   const canRemove = writeAvailable && hasAction(actions, 'REMOVE_MINTING_ACCOUNT');
 
   return (
-    <main className="app-shell">
+    <AvatarActionsProvider actions={actions}>
+      <main className="app-shell">
       <header className="topbar">
         <div>
           <p className="eyebrow">Minting <span className="app-version">{APP_VERSION}</span></p>
@@ -924,6 +925,7 @@ export default function App() {
       ) : null}
 
       {tab === 'reference' ? <Reference /> : null}
-    </main>
+      </main>
+    </AvatarActionsProvider>
   );
 }

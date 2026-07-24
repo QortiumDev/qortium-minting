@@ -32,10 +32,12 @@ const snippets = {
     "  path: '/groups/members/2?limit=250&offset=0'",
     '})',
   ].join('\n'),
-  'avatar-url': [
-    "qdnRequest({ action: 'GET_QDN_RESOURCE_URL',",
-    "  service: 'THUMBNAIL', name, identifier: 'avatar'",
-    '})',
+  'account-avatar': [
+    "const actions = await qdnRequest({ action: 'SHOW_ACTIONS' })",
+    "if (actions.includes('FETCH_ACCOUNT_AVATAR')) {",
+    "  const avatar = await qdnRequest({ action: 'FETCH_ACCOUNT_AVATAR', address, maxBytes: 500 * 1024 })",
+    "  // Render a validated base64 response as a Blob URL; retry PENDING only.",
+    '}',
   ].join('\n'),
   'watch-tx': [
     'const tx = await qdnRequest({',
@@ -152,7 +154,8 @@ export function Reference() {
             <li>GET_HOST_INFO failure means an older host. IS_USING_PUBLIC_NODE reports write availability.</li>
             <li>START_MINTING, JOIN_GROUP, and REMOVE_MINTING_ACCOUNT prompt for approval.</li>
             <li>RESOLVE_IDENTITIES is limited to 500 addresses per request.</li>
-            <li>GET_QDN_RESOURCE_URL returns avatar render URLs.</li>
+            <li>FETCH_ACCOUNT_AVATAR is feature-gated, returns pointer-aware image bytes, and may be PENDING.</li>
+            <li>Keep batch identity resolution names-only; fetch avatars only for visible account UI.</li>
             <li>QAVS remains 1.4.x because all newer behavior is feature-detected.</li>
           </ul>
 
