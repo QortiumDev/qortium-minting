@@ -1,9 +1,16 @@
-import { memo, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { createContext, memo, useContext, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { ArrowDown, ArrowDownUp, ArrowUp, Copy, Users } from 'lucide-react';
+import { useAccountAvatar } from './avatarClient';
 import { copyTextToClipboard } from './clipboard';
 import { getAvatarFallbackCharacter } from './identityProfiles';
 import { getAriaSort, type MinterSortKey, type SortState } from './minterSort';
-import type { NodeStatus } from './types';
+import type { NodeStatus, QdnAction } from './types';
+
+const AvatarActionsContext = createContext<QdnAction[] | undefined>(undefined);
+
+export function AvatarActionsProvider({ actions, children }: { actions: QdnAction[]; children: ReactNode }) {
+  return <AvatarActionsContext.Provider value={actions}>{children}</AvatarActionsContext.Provider>;
+}
 
 export function Notice({
   children,
@@ -16,16 +23,17 @@ export function Notice({
 }
 
 export function Avatar({
+  address,
   className = '',
   name,
-  src,
 }: {
+  address: string;
   className?: string;
   name: string | null;
-  src: string | null;
 }) {
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
+  const src = useAccountAvatar(address, useContext(AvatarActionsContext));
+  useEffect(() => setFailed(false), [address, src]);
 
   return src && !failed ? (
     <img
@@ -93,13 +101,11 @@ export function CopyAddressButton({
 
 export function AccountLink({
   address,
-  avatarSrc,
   className = '',
   name,
   onOpen,
 }: {
   address: string;
-  avatarSrc: string | null;
   className?: string;
   name: string | null;
   onOpen: (address: string) => void;
@@ -117,7 +123,7 @@ export function AccountLink({
       title={address}
       type="button"
     >
-      <Avatar className="identity__avatar" name={name} src={avatarSrc} />
+      <Avatar address={address} className="identity__avatar" key={address} name={name} />
       <span className={name ? '' : 'mono'}>{label}</span>
     </button>
   );

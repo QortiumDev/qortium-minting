@@ -9,7 +9,6 @@ export type BridgeState = {
 
 export type QdnSelectedAccount = {
   address: string;
-  avatarUrl: string | null;
   id?: string;
   isUnlocked: boolean;
   name: string | null;
@@ -46,7 +45,6 @@ export type NameSummary = {
 
 export type ResolvedIdentity = {
   address: string;
-  avatarSrc?: string | null;
   name?: string | null;
 };
 
@@ -123,10 +121,9 @@ export type NodeAccountInfo = {
 };
 
 // A minting-key account known to the connected node, enriched with on-chain
-// account info, its registered name, and (optionally) a resolved avatar.
+// account info and its registered name.
 export type MintingAccountInfo = {
   address: string;
-  avatarSrc: string | null;
   blocksMinted: number | null;
   level: number | null;
   name: string | null;
@@ -167,7 +164,6 @@ export type NodeBlockData = {
 // A recent block, enriched with minter address/level/name from mintinginfo.
 export type BlockSummary = {
   height: number;
-  minterAvatarSrc: string | null;
   minterAddress: string | null;
   minterLevel: number | null;
   minterName: string | null;
@@ -179,7 +175,6 @@ export type BlockSummary = {
 // One signed online-account entry for a block.
 // Shape returned by GET /blocks/onlineaccounts/{height} (Core DecodedOnlineAccountData).
 export type OnlineAccountEntry = {
-  avatarSrc: string | null;
   level: number | null;
   minter: string;
   name: string | null;

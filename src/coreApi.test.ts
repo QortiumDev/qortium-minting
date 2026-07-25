@@ -27,7 +27,7 @@ describe('core API bridge helpers', () => {
     ]);
 
     await expect(resolveIdentities(['Qabc', 'Qabc', ''], ['RESOLVE_IDENTITIES'])).resolves.toEqual([
-      { address: 'Qabc', avatarSrc: 'http://node/avatar', name: 'alice' },
+      { address: 'Qabc', name: 'alice' },
     ]);
     expect(qdnRequestMock).toHaveBeenCalledWith({
       action: 'RESOLVE_IDENTITIES',

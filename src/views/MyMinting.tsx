@@ -65,10 +65,9 @@ function MintingAccount({
   return (
     <article className="minting-account">
       <div>
-        <AccountLink
-          address={account.address}
-          avatarSrc={account.avatarSrc}
-          name={account.name}
+          <AccountLink
+            address={account.address}
+            name={account.name}
           onOpen={onOpenAccount}
         />
         <p className="mono">
@@ -164,7 +163,6 @@ export function MyMinting({
           <div className="selected-account" title={account.address}>
             <AccountLink
               address={account.address}
-              avatarSrc={identity?.avatarSrc ?? account.avatarUrl}
               name={name}
               onOpen={onOpenAccount}
             />

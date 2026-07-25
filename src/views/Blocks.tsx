@@ -53,7 +53,6 @@ function OnlineAccountsTable({
               <td>
                 <AccountLink
                   address={entry.minter}
-                  avatarSrc={entry.avatarSrc}
                   name={entry.name}
                   onOpen={onOpenAccount}
                 />
@@ -187,7 +186,6 @@ export function Blocks({
                   {block.minterAddress ? (
                     <AccountLink
                       address={block.minterAddress}
-                      avatarSrc={block.minterAvatarSrc}
                       className="block-minter"
                       name={block.minterName}
                       onOpen={onOpenAccount}

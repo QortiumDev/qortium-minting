@@ -42,13 +42,13 @@ const DEFAULT_RECENT_BLOCKS = 10;
 // FETCH_NODE_API calls at once.
 const BLOCK_FETCH_CONCURRENCY = 8;
 
-// Cross-call caches for name/avatar lookups, which almost never change between
+// Cross-call caches for name lookups, which almost never change between
 // refreshes. Shared across getRecentBlocks, getBlockOnlineAccounts, and
 // enrichMintingAccount so repeated refreshes/expands hit the cache instead of
 // refetching. Entries store the in-flight Promise so concurrent lookups for the
 // same address share a single request (true dedupe of the initial burst).
-const AVATAR_CACHE_MAX_ENTRIES = 500;
-const avatarProfileCache = new Map<string, Promise<IdentityProfile>>();
+const IDENTITY_CACHE_MAX_ENTRIES = 500;
+const identityProfileCache = new Map<string, Promise<IdentityProfile>>();
 
 // Resolve a list of tasks with a bounded concurrency pool while preserving the
 // input order in the returned array.
@@ -199,9 +199,8 @@ export async function getAccountNames(address: string, actions?: QdnAction[]) {
 
 export const RESOLVE_IDENTITIES_LIMIT = 500;
 
-// Home resolves account display identity (registered name + avatar URL) in one
-// read-only bridge call. This keeps selected-account UI consistent with other
-// QDN apps and avoids separate name/avatar requests.
+// Home resolves account display identity in one read-only bridge call. Apps use
+// its name field only; any legacy image hint never reaches UI state.
 export async function resolveIdentities(addresses: string[], actions?: QdnAction[]): Promise<ResolvedIdentity[]> {
   if (!hasBridgeAction(actions, 'RESOLVE_IDENTITIES')) {
     throw new Error('RESOLVE_IDENTITIES is not available in this Home build.');
@@ -217,7 +216,9 @@ export async function resolveIdentities(addresses: string[], actions?: QdnAction
     });
 
     if (Array.isArray(batch)) {
-      resolved.push(...batch);
+      resolved.push(...batch
+        .filter((identity): identity is ResolvedIdentity => !!identity && typeof identity.address === 'string')
+        .map((identity) => ({ address: identity.address, name: normalizeRegisteredName(identity.name) })));
     }
   }
 
@@ -368,11 +369,11 @@ function resolveMintingAccountAddress(account: NodeMintingAccount) {
   return normalizeRegisteredName(account.address) ?? normalizeRegisteredName(account.mintingAccount);
 }
 
-// Avatar/name resolution is expensive (QDN resource fetch) and effectively
-// static, so share one in-flight Promise per address+actions across refreshes.
-function resolveAvatarProfile(address: string, actions?: QdnAction[]): Promise<IdentityProfile> {
+// Name resolution is shared across refreshes. Avatar bytes are intentionally
+// not part of this cache: mounted Avatar controls fetch those through Home.
+function resolveIdentityProfile(address: string, actions?: QdnAction[]): Promise<IdentityProfile> {
   const cacheKey = `${address}\n${(actions ?? []).join(',')}`;
-  const cached = avatarProfileCache.get(cacheKey);
+  const cached = identityProfileCache.get(cacheKey);
 
   if (cached !== undefined) {
     return cached;
@@ -380,12 +381,12 @@ function resolveAvatarProfile(address: string, actions?: QdnAction[]): Promise<I
 
   const pending = loadIdentityProfile(address, actions).catch((error: unknown) => {
     // Do not cache failures; allow a later refresh to retry.
-    avatarProfileCache.delete(cacheKey);
+    identityProfileCache.delete(cacheKey);
 
     throw error;
   });
 
-  setCapped(avatarProfileCache, cacheKey, pending, AVATAR_CACHE_MAX_ENTRIES);
+  setCapped(identityProfileCache, cacheKey, pending, IDENTITY_CACHE_MAX_ENTRIES);
 
   return pending;
 }
@@ -414,20 +415,16 @@ async function enrichMintingAccount(account: NodeMintingAccount, actions?: QdnAc
   }
 
   let name: string | null = null;
-  let avatarSrc: string | null = null;
-
   try {
-    const profile = await resolveAvatarProfile(address, actions);
+    const profile = await resolveIdentityProfile(address, actions);
 
     name = profile.name;
-    avatarSrc = profile.avatarSrc;
   } catch {
-    // Name/avatar resolution is best-effort.
+    // Name resolution is best-effort.
   }
 
   return {
     address,
-    avatarSrc,
     blocksMinted,
     level,
     name,
@@ -478,7 +475,6 @@ function toBlockSummary(
 ): BlockSummary {
   return {
     height,
-    minterAvatarSrc: identity?.avatarSrc ?? null,
     minterAddress: normalizeRegisteredName(mintingInfo?.minterAddress),
     minterLevel: typeof mintingInfo?.minterLevel === 'number' ? mintingInfo.minterLevel : null,
     minterName: identity?.name ?? null,
@@ -590,7 +586,6 @@ export async function getBlockOnlineAccounts(
   return raw.map((entry) => {
     const profile = identitiesByAddress.get(entry.minter);
     return {
-      avatarSrc: profile?.avatarSrc ?? null,
       level: typeof entry.level === 'number' ? entry.level : null,
       minter: entry.minter,
       name: profile?.name ?? normalizeRegisteredName(entry.name),
@@ -640,7 +635,6 @@ export async function getCurrentOnlineAccounts(actions?: QdnAction[]): Promise<O
     const minter = entry.minterAddress ?? '';
     const profile = identitiesByAddress.get(minter);
     return {
-      avatarSrc: profile?.avatarSrc ?? null,
       level: typeof entry.minterLevel === 'number' ? entry.minterLevel : null,
       minter,
       name: profile?.name ?? null,
