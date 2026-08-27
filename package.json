@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^6.0.4",
+    "@vitejs/plugin-react": "^6.1.0",
     "emoji-picker-react": "^4.19.1",
     "lucide-react": "^0.577.0",
     "react": "^19.2.8",
