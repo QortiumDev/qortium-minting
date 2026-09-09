@@ -48,3 +48,27 @@ describe('Minting routes', () => {
     }
   });
 });
+
+
+describe('canonical Developers workspace', () => {
+  it.each(['developers', 'developer', 'reference'])('accepts view=%s ahead of tab', view => {
+    expect(readMintingRoute(`/?view=${view}&tab=blocks`)).toEqual({ tab: 'reference' });
+  });
+  it('canonicalizes the old tab alias, preserving repeated host parameters and fragment', () => {
+    const before = 'https://example.test/render/APP/Minting/qortium-minting?tab=reference&tab=blocks&future=a&future=b&theme=dark&qdnHomeBridge=test#reference-reads';
+    const url = getMintingRouteUrl(before, readMintingRoute(before));
+    expect(url.pathname).toBe('/render/APP/Minting/qortium-minting');
+    expect(url.searchParams.getAll('view')).toEqual(['developers']);
+    expect(url.searchParams.has('tab')).toBe(false);
+    expect(url.searchParams.getAll('future')).toEqual(['a', 'b']);
+    expect(url.searchParams.get('qdnHomeBridge')).toBe('test');
+    expect(url.hash).toBe('#reference-reads');
+    const blocks = getMintingRouteUrl(url, { tab: 'blocks' });
+    expect(blocks.searchParams.has('view')).toBe(false);
+    expect(readMintingRoute(blocks)).toEqual({ tab: 'blocks' });
+  });
+  it('falls back to the existing tab for an unknown view', () => {
+    expect(readMintingRoute('/?view=future&tab=minters')).toEqual({ tab: 'minters' });
+    expect(readMintingRoute('/?view=future')).toEqual({ tab: 'status' });
+  });
+});

@@ -1,3 +1,5 @@
+import { GROUP_MEMBER_PAGE_SIZE, GROUP_MEMBER_MAX_PAGE_SIZE, RESOLVE_IDENTITIES_LIMIT } from './mintingConstants';
+export { RESOLVE_IDENTITIES_LIMIT } from './mintingConstants';
 import { groupContiguousDescending } from './blockFilter';
 import { loadIdentityProfile, loadIdentityProfiles, normalizeRegisteredName } from './identityProfiles';
 import type { IdentityProfile } from './identityProfiles';
@@ -142,7 +144,7 @@ export function buildMemberGroupsPath(address: string) {
   return `/groups/member/${encodeURIComponent(address)}`;
 }
 
-export function buildGroupMembersPath(groupId: number, limit = 250, offset = 0) {
+export function buildGroupMembersPath(groupId: number, limit = GROUP_MEMBER_PAGE_SIZE, offset = 0) {
   const query = new URLSearchParams({ limit: String(limit), offset: String(offset), reverse: 'true' });
   return `/groups/members/${encodeURIComponent(String(groupId))}?${query.toString()}`;
 }
@@ -197,7 +199,6 @@ export async function getAccountNames(address: string, actions?: QdnAction[]) {
   return fetchNodeApiData<NameSummary[]>(buildAccountNamesPath(address), 'Account names');
 }
 
-export const RESOLVE_IDENTITIES_LIMIT = 500;
 
 // Home resolves account display identity in one read-only bridge call. Apps use
 // its name field only; any legacy image hint never reaches UI state.
@@ -322,10 +323,10 @@ export async function isMintingGroupMember(address: string, actions?: QdnAction[
 }
 
 /** Fetch every group member page. The short-page stop avoids silently truncating a growing group. */
-export async function getGroupMembers(groupId: number, actions?: QdnAction[], pageSize = 250): Promise<GroupMember[]> {
+export async function getGroupMembers(groupId: number, actions?: QdnAction[], pageSize = GROUP_MEMBER_PAGE_SIZE): Promise<GroupMember[]> {
   const members: GroupMember[] = [];
   let offset = 0;
-  const limit = Math.max(1, Math.min(500, Math.trunc(pageSize)));
+  const limit = Math.max(1, Math.min(GROUP_MEMBER_MAX_PAGE_SIZE, Math.trunc(pageSize)));
 
   while (true) {
     const page = hasBridgeAction(actions, 'GET_GROUP_MEMBERS')

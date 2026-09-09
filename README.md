@@ -39,7 +39,7 @@ minting-key removal for development; otherwise browser mode is read-only. Set
 
 ## QAVS and UI styles
 
-The app is at QAVS `1.4.3`: the `1.4` portion is its minimum Qortium platform
+The app is at QAVS `1.4.4`: the `1.4` portion is its minimum Qortium platform
 level and the patch number tracks the app release. `vite.config.ts` reads the
 package version, injects the visible version badge, and emits
 `dist/qortium-app.json` with the name `Minting` during every build.
@@ -88,3 +88,14 @@ waits for `/arbitrary/resource/status/APP/Minting/Minting?build=true` to report
 
 The app currently targets Qortium Previewnet, whose default local Core API port
 is `24891`.
+
+## Developers workspace
+
+This maintenance pass targets Qortium only. Open `?view=developers` for the
+always-English in-app contract. `view=developer` and `view=reference` are read
+aliases; recognized Developers views take precedence over other app routes.
+Existing `tab=reference` links remain accepted and canonicalize to `view=developers`; other `tab` links remain valid.
+Home parameters, repeated unknown query keys and fragments survive navigation.
+Section links use the current render URL and scroll only the reference pane.
+Copy feedback is announced; when copying is unavailable, examples stay selectable.
+The reference imports implementation limits and has route/rendered-contract tests.

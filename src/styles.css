@@ -924,3 +924,15 @@ html {
     flex-direction: column;
   }
 }
+
+/* Keep reference navigation within the app even with Core's injected base URL. */
+.reference, .reference-grid, .reference .card, .snippet { min-width: 0; }
+.reference-scroll { max-height: 72dvh; overflow: auto; overscroll-behavior: contain; padding: 4px; }
+.reference-toc { display: flex; flex-wrap: wrap; gap: 0.5em 1em; }
+.reference-toc a { color: var(--qm-accent); padding: 0.4em 0; overflow-wrap: anywhere; }
+.reference .card { scroll-margin-block: 4px; }
+.reference .table-wrap { min-width: 0; overflow-x: auto; }
+.reference pre { max-width: 100%; overflow-wrap: anywhere; }
+.reference .snippet-head { flex-wrap: wrap; }
+.reference .copy-status { min-height: 1.5em; }
+.reference :focus-visible { outline: 2px solid var(--qm-accent); outline-offset: 2px; }
