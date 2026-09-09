@@ -1,3 +1,4 @@
+import { RESOLVE_IDENTITIES_LIMIT } from './mintingConstants';
 import { hasHomeBridge, qdnRequest } from './qdnRequest';
 import type { NameSummary, QdnAction } from './types';
 
@@ -87,8 +88,8 @@ export async function loadIdentityProfiles(addresses: string[], actions?: QdnAct
   if (hasHomeBridge() && hasBridgeAction(actions, 'RESOLVE_IDENTITIES')) {
     try {
       const output: IdentityProfile[] = [];
-      for (let offset = 0; offset < addresses.length; offset += 500) {
-        const batch = addresses.slice(offset, offset + 500);
+      for (let offset = 0; offset < addresses.length; offset += RESOLVE_IDENTITIES_LIMIT) {
+        const batch = addresses.slice(offset, offset + RESOLVE_IDENTITIES_LIMIT);
         const resolved = await qdnRequest<{ address?: string; name?: string }[]>({
           action: 'RESOLVE_IDENTITIES',
           addresses: batch,

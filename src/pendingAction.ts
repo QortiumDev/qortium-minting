@@ -1,3 +1,4 @@
+import { PENDING_ACTION_TIMEOUT_MS } from './mintingConstants';
 export type PendingActionKind = 'join' | 'remove' | 'start';
 export type PendingActionPhase = 'signing' | 'pending' | 'confirmed' | 'timeout';
 export type PendingActionGoal = 'key-added' | 'key-removed' | 'membership' | 'reward-share';
@@ -27,4 +28,4 @@ export function markPending(
 }
 
 export function transitionPending(action: PendingAction, submittedAt: number, phase: Extract<PendingActionPhase, 'confirmed' | 'timeout'>): PendingAction | null { return action.submittedAt === submittedAt ? { ...action, phase } : null; }
-export function isTimedOut(action: PendingAction, now = Date.now()) { return now - action.submittedAt >= 600_000; }
+export function isTimedOut(action: PendingAction, now = Date.now()) { return now - action.submittedAt >= PENDING_ACTION_TIMEOUT_MS; }

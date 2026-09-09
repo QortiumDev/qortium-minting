@@ -6,7 +6,7 @@ export interface MintingRoute {
 
 const MINTING_TABS: readonly MintingTab[] = ['status', 'minters', 'blocks', 'reference'];
 const DEFAULT_TAB: MintingTab = 'status';
-const MINTING_ROUTE_KEYS = ['tab'] as const;
+const MINTING_ROUTE_KEYS = ['tab', 'view'] as const;
 
 function isMintingTab(value: string | null): value is MintingTab {
   return value !== null && (MINTING_TABS as readonly string[]).includes(value);
@@ -14,6 +14,10 @@ function isMintingTab(value: string | null): value is MintingTab {
 
 export function readMintingRoute(input: string | URL): MintingRoute {
   const url = input instanceof URL ? input : new URL(input, 'http://localhost');
+  // A recognized Developers view takes precedence over the legacy tab key.
+  if (['developers', 'developer', 'reference'].includes(url.searchParams.get('view') ?? '')) {
+    return { tab: 'reference' };
+  }
   const requestedTab = url.searchParams.get('tab');
 
   return { tab: isMintingTab(requestedTab) ? requestedTab : DEFAULT_TAB };
@@ -26,7 +30,9 @@ export function getMintingRouteUrl(input: string | URL, route: MintingRoute): UR
     url.searchParams.delete(key);
   }
 
-  if (route.tab !== DEFAULT_TAB) {
+  if (route.tab === 'reference') {
+    url.searchParams.set('view', 'developers');
+  } else if (route.tab !== DEFAULT_TAB) {
     url.searchParams.set('tab', route.tab);
   }
 
